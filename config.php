@@ -90,10 +90,70 @@ if (!empty($databaseUrl)) {
 define('DB_CHARSET', 'utf8mb4');
 
 // Team Balance Rules
-define('MAX_SKILLED_PER_TEAM', 4);
+// 10 Skilled Players (5 paired rival matchups = 5 skilled per team)
+// 9 Regular Players (4-5 per team)
+define('MAX_SKILLED_PER_TEAM', 5);
 define('MAX_REGULAR_PER_TEAM', 5);
-define('TOTAL_PLAYERS_PER_TEAM', 9);
-define('TOTAL_PLAYERS_ALLOWED', 18);
+define('TOTAL_PLAYERS_PER_TEAM', 10);
+define('TOTAL_PLAYERS_ALLOWED', 20);
+
+/**
+ * Head-to-Head rival pairing rules for skilled players based on official match sheet:
+ * - Jimmy vs Oliver
+ * - Jensen vs Eddie
+ * - Maxy vs Kristian
+ * - Spruu vs Marto
+ * - Otis vs Maina
+ */
+function getPlayerRivalName(string $playerName): ?string {
+    $pairs = [
+        'jimmy'     => 'Oliver',
+        'oliver'    => 'Jimmy',
+        'olive'     => 'Jimmy',
+        'jensen'    => 'Eddie',
+        'eddie'     => 'Jensen',
+        'eddy'      => 'Jensen',
+        'maxy'      => 'Kristian',
+        'max'       => 'Kristian',
+        'kristian'  => 'Maxy',
+        'christian' => 'Maxy',
+        'spruu'     => 'Marto',
+        'marto'     => 'Spruu',
+        'otis'      => 'Maina',
+        'maina'     => 'Otis',
+    ];
+    $clean = strtolower(trim($playerName));
+    return $pairs[$clean] ?? null;
+}
+
+/**
+ * Searches the database for the given player's paired rival opponent.
+ */
+function findRivalPlayer(PDO $pdo, string $playerName): ?array {
+    $rivalName = getPlayerRivalName($playerName);
+    if (!$rivalName) {
+        return null;
+    }
+
+    $aliases = [$rivalName];
+    $lower = strtolower($rivalName);
+    if ($lower === 'oliver') $aliases[] = 'olive';
+    if ($lower === 'olive') $aliases[] = 'oliver';
+    if ($lower === 'eddie') $aliases[] = 'eddy';
+    if ($lower === 'eddy') $aliases[] = 'eddie';
+    if ($lower === 'kristian') $aliases[] = 'christian';
+    if ($lower === 'christian') $aliases[] = 'kristian';
+    if ($lower === 'maxy') $aliases[] = 'max';
+    if ($lower === 'max') $aliases[] = 'maxy';
+
+    $inClause = implode(',', array_fill(0, count($aliases), '?'));
+    $params = array_map('strtolower', $aliases);
+
+    $stmt = $pdo->prepare("SELECT id, name, team_id, tier, token FROM players WHERE LOWER(name) IN ($inClause) LIMIT 1");
+    $stmt->execute($params);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
 
 // Admin Authentication
 // Default Admin password is 'turf2026'

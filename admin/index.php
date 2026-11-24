@@ -97,12 +97,15 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
                 </div>
             </nav>
 
+            <!-- Conflict Banner Container -->
+            <div id="rivalConflictContainer" style="margin-bottom: 1rem;"></div>
+
             <!-- Stats & Balance Counters Bar -->
             <section class="admin-stats-bar">
                 <div class="stat-card">
                     <div class="stat-label">Skilled Balance</div>
-                    <div class="stat-value" id="statSkilled">0 / 8</div>
-                    <div class="stat-target">4 per team cap</div>
+                    <div class="stat-value" id="statSkilled">0 / 10</div>
+                    <div class="stat-target">5 per team cap (5 pairs)</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Regular Balance</div>
@@ -111,12 +114,12 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Total Roster</div>
-                    <div class="stat-value" id="statTotal">0 / 18</div>
-                    <div class="stat-target">18 players total</div>
+                    <div class="stat-value" id="statTotal">0 / 20</div>
+                    <div class="stat-target">Max 20 players</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Locked In</div>
-                    <div class="stat-value" id="statPicked" style="color:var(--grass-light);">0 / 18</div>
+                    <div class="stat-value" id="statPicked" style="color:var(--grass-light);">0 / 20</div>
                     <div class="stat-target">Picked teams</div>
                 </div>
             </section>
@@ -124,7 +127,7 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
             <!-- Action Toolbar -->
             <section class="admin-toolbar">
                 <button type="button" id="copyAllLinksBtn" class="btn btn-primary">
-                    📋 Copy All 18 Links
+                    📋 Copy All Player Links
                 </button>
                 <button type="button" id="exportWhatsAppBtn" class="btn btn-whatsapp">
                     💬 Export Squad to WhatsApp

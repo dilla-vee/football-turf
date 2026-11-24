@@ -70,7 +70,7 @@ assertCondition("Status returns success for valid token", ($statusData['success'
 assertCondition("Player name is displayed", ($statusData['player']['name'] ?? '') === 'Jimmy');
 assertCondition("Player tier is NOT leaked in response", !isset($statusData['player']['tier']));
 assertCondition("Roster names have no tier badges attached", !isset($statusData['teams'][0]['roster'][0]['tier']));
-assertCondition("Skilled player sees 4 spots left initially per team", ($statusData['teams'][0]['spots_left'] ?? 0) === 4 && ($statusData['teams'][1]['spots_left'] ?? 0) === 4);
+assertCondition("Skilled player sees 5 spots left initially per team", ($statusData['teams'][0]['spots_left'] ?? 0) === 5 && ($statusData['teams'][1]['spots_left'] ?? 0) === 5);
 
 // 3. Test Invalid Token handling
 $invalidTokenData = callApi(['action' => 'status', 't' => 'invalid_random_token_999']);
@@ -103,11 +103,17 @@ function simulatePick(string $token, int $teamId): array {
             return ['success' => false, 'error' => 'Already picked'];
         }
 
+        $rival = findRivalPlayer($pdo, $player['name']);
+        if ($rival && $rival['team_id'] !== null && (int)$rival['team_id'] === $teamId) {
+            $pdo->rollBack();
+            return ['success' => false, 'error' => 'Blocked by rival'];
+        }
+
         $tStmt = $pdo->prepare("SELECT id, name FROM teams WHERE id = ? FOR UPDATE");
         $tStmt->execute([$teamId]);
         $team = $tStmt->fetch();
 
-        $max = ($player['tier'] === 'skilled') ? 4 : 5;
+        $max = ($player['tier'] === 'skilled') ? MAX_SKILLED_PER_TEAM : MAX_REGULAR_PER_TEAM;
         $cStmt = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ? AND tier = ?");
         $cStmt->execute([$teamId, $player['tier']]);
         if ((int)$cStmt->fetchColumn() >= $max) {
@@ -133,65 +139,67 @@ assertCondition("Jimmy successfully picks Runda FC", $pick1['success'] === true 
 $pickAgain = simulatePick('291c9104b29acd1934f2b669771c13ba', 2);
 assertCondition("Jimmy cannot pick twice (choice locked)", $pickAgain['success'] === false && $pickAgain['error'] === 'Already picked');
 
-// 5. Test Hard Caps: Fill Runda FC with 4 Skilled Players
-echo "\n4. Testing Hard Caps for Skilled Players (Cap: 4 per team)...\n";
-$pick2 = simulatePick('2cfc36e668eee6e18c96c08bee581d6f', 1); // Oliver -> Runda (2/4)
-$pick3 = simulatePick('a47a13d1abbe5a4926b4264542cacbe7', 1); // Jensen -> Runda (3/4)
-$pick4 = simulatePick('700dd40ab62dbf1d7aaac2ba48112c71', 1); // Eddie -> Runda (4/4 FULL)
+// 5. Test Hard Caps: Fill Runda FC with 5 Skilled Players (1 from each pair)
+echo "\n4. Testing Hard Caps for Skilled Players (Cap: 5 per team)...\n";
+// Jimmy is already on Runda (1/5). Now pick Jensen, Maxy, Spruu, Otis:
+$pick2 = simulatePick('a47a13d1abbe5a4926b4264542cacbe7', 1); // Jensen -> Runda (2/5)
+$pick3 = simulatePick('ee11595ec62b50adaab88af126b694d5', 1); // Maxy -> Runda (3/5)
+$pick4 = simulatePick('6a6c02c176568cc55cc067289c8d4a44', 1); // Spruu -> Runda (4/5)
+$pick5 = simulatePick('4b3aaef91ae04df77bc960579de3520c', 1); // Otis -> Runda (5/5 FULL)
 
-assertCondition("Player 2, 3, 4 joined Runda FC", $pick2['success'] && $pick3['success'] && $pick4['success']);
+assertCondition("5 Skilled players (1 per pair) joined Runda FC", $pick2['success'] && $pick3['success'] && $pick4['success'] && $pick5['success']);
 
-// Now 5th skilled player Maxy tries to pick Runda FC
-$pick5 = simulatePick('ee11595ec62b50adaab88af126b694d5', 1);
-assertCondition("5th Skilled player REJECTED from Runda FC (Cap 4 enforced)", $pick5['success'] === false && $pick5['error'] === 'Team full for tier');
+// Now Oliver tries to pick Runda FC (Blocked by rival Jimmy AND team full for skilled)
+$pickOliver = simulatePick('2cfc36e668eee6e18c96c08bee581d6f', 1);
+assertCondition("Oliver REJECTED from Runda FC (Rival & Cap enforced)", $pickOliver['success'] === false);
 
-// Verify Maxy status now shows Runda full, Makongeni only selectable option
-$maxyData = callApi(['action' => 'status', 't' => 'ee11595ec62b50adaab88af126b694d5']);
+// Verify Oliver status shows Runda full/blocked, Makongeni only selectable option
+$oliverData = callApi(['action' => 'status', 't' => '2cfc36e668eee6e18c96c08bee581d6f']);
 
-assertCondition("Runda FC has 0 spots left for skilled player", $maxyData['teams'][0]['spots_left'] === 0);
-assertCondition("Runda FC is marked not selectable for skilled player", $maxyData['teams'][0]['is_selectable'] === false);
-assertCondition("Makongeni FC has 4 spots left for skilled player", $maxyData['teams'][1]['spots_left'] === 4);
-assertCondition("Makongeni FC is auto-identified as single remaining option", $maxyData['auto_assigned_team_id'] === 2);
+assertCondition("Runda FC has 0 spots left for Oliver", $oliverData['teams'][0]['spots_left'] === 0);
+assertCondition("Runda FC is marked not selectable for Oliver", $oliverData['teams'][0]['is_selectable'] === false);
+assertCondition("Makongeni FC has 5 spots left for Oliver", $oliverData['teams'][1]['spots_left'] === 5);
+assertCondition("Makongeni FC is auto-identified as single remaining option", $oliverData['auto_assigned_team_id'] === 2);
 
-// Maxy picks Makongeni FC
-$pickMaxyMako = simulatePick('ee11595ec62b50adaab88af126b694d5', 2);
-assertCondition("Maxy successfully joins Makongeni FC", $pickMaxyMako['success'] === true);
+// Oliver picks Makongeni FC
+$pickOliverMako = simulatePick('2cfc36e668eee6e18c96c08bee581d6f', 2);
+assertCondition("Oliver successfully joins Makongeni FC", $pickOliverMako['success'] === true);
 
 // 6. Test Hard Caps: Regular Players (Cap: 5 per team)
 echo "\n5. Testing Hard Caps for Regular Players (Cap: 5 per team)...\n";
-// Regular tokens: Otis, Josee, Cyro, Don, Maina, Kimi
-simulatePick('4b3aaef91ae04df77bc960579de3520c', 1); // Otis -> Runda (1/5)
-simulatePick('3622253a346bf02104f96b34f9193e8a', 1); // Josee -> Runda (2/5)
-simulatePick('111316ace8decde053f613c2cd0ac677', 1); // Cyro -> Runda (3/5)
-simulatePick('c2694bba07116468b7d318f96ad846e1', 1); // Don -> Runda (4/5)
-$reg5 = simulatePick('bc8d67a9902eda5e6ab506b3de6fc6d3', 1); // Maina -> Runda (5/5 FULL)
+// Regular tokens: Josee, Cyro, Don, Kimi, Laban, Fidel
+simulatePick('3622253a346bf02104f96b34f9193e8a', 1); // Josee -> Runda (1/5)
+simulatePick('111316ace8decde053f613c2cd0ac677', 1); // Cyro -> Runda (2/5)
+simulatePick('c2694bba07116468b7d318f96ad846e1', 1); // Don -> Runda (3/5)
+simulatePick('8541e10ad454370b0a927e00f2f78188', 1); // Kimi -> Runda (4/5)
+$reg5 = simulatePick('80e6e4653dd718b66f81ad1073b74fbd', 1); // Laban -> Runda (5/5 FULL)
 assertCondition("5 Regular players filled Runda FC", $reg5['success'] === true);
 
-// 6th Regular player (Kimi) tries to pick Runda FC
-$reg6 = simulatePick('8541e10ad454370b0a927e00f2f78188', 1);
+// 6th Regular player (Fidel) tries to pick Runda FC
+$reg6 = simulatePick('f812ce1b6f12e38c4d5cabc052633660', 1);
 assertCondition("6th Regular player REJECTED from Runda FC (Cap 5 enforced)", $reg6['success'] === false && $reg6['error'] === 'Team full for tier');
 
-// Verify Runda is completely full (4 skilled + 5 regular = 9 players total!)
+// Verify Runda is completely full (5 skilled + 5 regular = 10 players total!)
 $rundaTotal = (int)$pdo->query("SELECT COUNT(*) FROM players WHERE team_id = 1")->fetchColumn();
-assertCondition("Runda FC reached exact 9 player capacity", $rundaTotal === 9, "Total: $rundaTotal");
+assertCondition("Runda FC reached exact 10 player capacity", $rundaTotal === 10, "Total: $rundaTotal");
 
 // 7. Test Admin Lock Picking Feature...
 echo "\n6. Testing Admin Lock Picking Feature...\n";
 $pdo->exec("UPDATE settings SET setting_value = '1' WHERE setting_key = 'picking_locked'");
-$lockPick = simulatePick('8541e10ad454370b0a927e00f2f78188', 2);
+$lockPick = simulatePick('651490f143c22b0ae259439dcc0a8c9d', 2); // Zack tries to pick
 assertCondition("When picking is locked by admin, no player can pick", $lockPick['success'] === false && $lockPick['error'] === 'Picking locked');
 
 // Unlock picking
 $pdo->exec("UPDATE settings SET setting_value = '0' WHERE setting_key = 'picking_locked'");
-$unlockPick = simulatePick('8541e10ad454370b0a927e00f2f78188', 2);
+$unlockPick = simulatePick('651490f143c22b0ae259439dcc0a8c9d', 2); // Zack tries again
 assertCondition("When admin unlocks picking, selections succeed again", $unlockPick['success'] === true);
 
 // 8. Test Admin Reset Single Player and Reset All
 echo "\n7. Testing Admin Reset Operations...\n";
-// Reset Kimi (id 14)
-$pdo->exec("UPDATE players SET team_id = NULL, picked_at = NULL WHERE id = 14");
-$kimiTeam = $pdo->query("SELECT team_id FROM players WHERE id = 14")->fetchColumn();
-assertCondition("Admin can reset an individual player's pick", $kimiTeam === null);
+// Reset Zack (id 17)
+$pdo->exec("UPDATE players SET team_id = NULL, picked_at = NULL WHERE id = 17");
+$zackTeam = $pdo->query("SELECT team_id FROM players WHERE id = 17")->fetchColumn();
+assertCondition("Admin can reset an individual player's pick", $zackTeam === null);
 
 // Reset all players
 $pdo->exec("UPDATE players SET team_id = NULL, picked_at = NULL");

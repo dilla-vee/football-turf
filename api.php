@@ -1,7 +1,7 @@
 <?php
 /**
  * Turf Teams - Player API Endpoint
- * Handles live team polling and race-condition-safe atomic team picking.
+ * Handles live team polling, paired rival opponent balancing, and race-condition-safe atomic team picking.
  */
 
 require_once __DIR__ . '/config.php';
@@ -35,6 +35,17 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
     $stmtLock = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'picking_locked'");
     $stmtLock->execute();
     $pickingLocked = ($stmtLock->fetchColumn() === '1');
+
+    // Check if viewer has a paired rival opponent who has already picked
+    $rival = findRivalPlayer($pdo, $viewer['name']);
+    $rivalTeamId = null;
+    $rivalName = null;
+    if ($rival) {
+        $rivalName = $rival['name'];
+        if ($rival['team_id'] !== null) {
+            $rivalTeamId = (int)$rival['team_id'];
+        }
+    }
 
     // Fetch teams
     $teamsStmt = $pdo->query("SELECT id, name FROM teams ORDER BY id ASC");
@@ -79,8 +90,15 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
             ];
         }
 
+        // Rival constraint: cannot join the same team as your paired opponent
+        $blockedByRival = ($rivalTeamId !== null && $teamId === $rivalTeamId);
+
         $spotsLeft = max(0, $maxForViewerTier - $currentTierCount);
-        $isFullForViewer = ($spotsLeft <= 0);
+        if ($blockedByRival) {
+            $spotsLeft = 0;
+        }
+
+        $isFullForViewer = ($spotsLeft <= 0 || $blockedByRival);
         $isSelectable = (!$pickingLocked && $viewer['team_id'] === null && !$isFullForViewer);
 
         if ($isSelectable) {
@@ -95,6 +113,8 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
             'max_team_size' => TOTAL_PLAYERS_PER_TEAM,
             'spots_left' => $spotsLeft,
             'is_full_for_viewer' => $isFullForViewer,
+            'blocked_by_rival' => $blockedByRival,
+            'rival_name' => $blockedByRival ? $rivalName : null,
             'is_selectable' => $isSelectable,
             'roster' => $roster
         ];
@@ -110,7 +130,8 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
             'has_picked' => ($viewer['team_id'] !== null),
             'picked_team_id' => $viewer['team_id'] !== null ? (int)$viewer['team_id'] : null,
             'picked_team_name' => $pickedTeamName,
-            'picked_at' => $viewer['picked_at']
+            'picked_at' => $viewer['picked_at'],
+            'rival_name' => $rivalName
         ],
         'picking_locked' => $pickingLocked,
         'auto_assigned_team_id' => $autoAssignedTeamId,
@@ -119,7 +140,7 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
 }
 
 /**
- * Handle race-condition safe atomic team selection using MySQL InnoDB row locking.
+ * Handle race-condition safe atomic team selection using MySQL/PostgreSQL row locking.
  */
 function handlePick(PDO $pdo, array $jsonInput = []): void {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
@@ -193,10 +214,27 @@ function handlePick(PDO $pdo, array $jsonInput = []): void {
             return;
         }
 
+        // 5. Enforce Paired Rival Opponent Constraint
+        // Paired skilled players (e.g. Jimmy vs Oliver) can NEVER join the same team.
+        $rival = findRivalPlayer($pdo, $player['name']);
+        if ($rival && $rival['team_id'] !== null && (int)$rival['team_id'] === $requestedTeamId) {
+            $pdo->rollBack();
+            $otherTeamStmt = $pdo->prepare("SELECT name FROM teams WHERE id != ? LIMIT 1");
+            $otherTeamStmt->execute([$requestedTeamId]);
+            $otherTeamName = $otherTeamStmt->fetchColumn() ?: 'the opposing team';
+
+            http_response_code(409);
+            echo json_encode([
+                'success' => false,
+                'error' => "{$player['name']} and {$rival['name']} are paired opponents and cannot be on the same team! You must join {$otherTeamName}."
+            ]);
+            return;
+        }
+
         $tier = $player['tier'];
         $maxAllowed = ($tier === 'skilled') ? MAX_SKILLED_PER_TEAM : MAX_REGULAR_PER_TEAM;
 
-        // 5. Count existing players in this team for this tier
+        // 6. Count existing players in this team for this tier
         $countStmt = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ? AND tier = ?");
         $countStmt->execute([$requestedTeamId, $tier]);
         $currentTierCount = (int)$countStmt->fetchColumn();
@@ -211,7 +249,7 @@ function handlePick(PDO $pdo, array $jsonInput = []): void {
             return;
         }
 
-        // 6. Atomically update player record with team_id IS NULL guard
+        // 7. Atomically update player record with team_id IS NULL guard
         $updateStmt = $pdo->prepare("
             UPDATE players 
             SET team_id = :team_id, picked_at = NOW() 
@@ -232,7 +270,7 @@ function handlePick(PDO $pdo, array $jsonInput = []): void {
             return;
         }
 
-        // 7. Commit transaction
+        // 8. Commit transaction
         $pdo->commit();
 
         echo json_encode([

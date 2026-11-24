@@ -45,6 +45,13 @@ function getDb(): PDO {
 
         try {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+
+            // Automatically ensure Otis and Maina are tier 'skilled' per the official match sheet
+            try {
+                $pdo->exec("UPDATE players SET tier = 'skilled' WHERE LOWER(name) IN ('otis', 'maina') AND tier != 'skilled'");
+            } catch (Throwable $ignore) {
+                // Ignore if players table not yet seeded
+            }
         } catch (PDOException $e) {
             $isApi = (strpos($_SERVER['REQUEST_URI'] ?? '', 'api.php') !== false) || 
                      (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);

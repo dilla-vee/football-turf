@@ -193,6 +193,7 @@ function handleDashboardData(PDO $pdo): void {
                 'id' => (int)$p['id'],
                 'name' => $p['name'],
                 'tier' => $p['tier'],
+                'rival_name' => getPlayerRivalName($p['name']),
                 'token' => $p['token'],
                 'picked_at' => $p['picked_at'],
                 'link' => $playerUrl,
@@ -232,6 +233,7 @@ function handleDashboardData(PDO $pdo): void {
             'id' => (int)$p['id'],
             'name' => $p['name'],
             'tier' => $p['tier'],
+            'rival_name' => getPlayerRivalName($p['name']),
             'token' => $p['token'],
             'link' => $playerUrl,
             'whatsapp_link' => $whatsappUrl
@@ -257,6 +259,7 @@ function handleDashboardData(PDO $pdo): void {
             'id' => (int)$p['id'],
             'name' => $p['name'],
             'tier' => $p['tier'],
+            'rival_name' => getPlayerRivalName($p['name']),
             'token' => $p['token'],
             'team_id' => $p['team_id'] !== null ? (int)$p['team_id'] : null,
             'team_name' => $p['team_name'],
@@ -264,6 +267,27 @@ function handleDashboardData(PDO $pdo): void {
             'link' => $playerUrl,
             'whatsapp_link' => $whatsappUrl
         ];
+    }
+
+    // Detect any rival conflicts on the same team (e.g. Jimmy & Oliver both on Makongeni)
+    $rivalConflicts = [];
+    foreach ($teamsData as $tData) {
+        $seen = [];
+        foreach ($tData['players'] as $pl) {
+            $rName = getPlayerRivalName($pl['name']);
+            if ($rName) {
+                $rClean = strtolower(trim($rName));
+                if (isset($seen[$rClean])) {
+                    $rivalConflicts[] = [
+                        'team_id' => $tData['id'],
+                        'team_name' => $tData['name'],
+                        'player1' => $seen[$rClean],
+                        'player2' => $pl
+                    ];
+                }
+                $seen[strtolower(trim($pl['name']))] = $pl;
+            }
+        }
     }
 
     echo json_encode([
@@ -274,12 +298,13 @@ function handleDashboardData(PDO $pdo): void {
             'total_players' => $totalPlayers,
             'max_allowed' => TOTAL_PLAYERS_ALLOWED,
             'skilled_count' => $totalSkilled,
-            'skilled_target' => 8,
+            'skilled_target' => 10,
             'regular_count' => $totalRegular,
             'regular_target' => 10,
             'picked_count' => $totalPicked,
             'unassigned_count' => count($unassignedPlayers)
         ],
+        'rival_conflicts' => $rivalConflicts,
         'teams' => $teamsData,
         'unassigned' => $unassignedPlayers,
         'all_players' => $allPlayers

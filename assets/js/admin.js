@@ -30,6 +30,9 @@
         statTotal: document.getElementById('statTotal'),
         statPicked: document.getElementById('statPicked'),
         
+        // Rival Conflicts
+        rivalConflictContainer: document.getElementById('rivalConflictContainer'),
+
         // Lock button
         lockToggleBtn: document.getElementById('lockToggleBtn'),
         lockBadge: document.getElementById('lockBadge'),
@@ -315,6 +318,46 @@
             el.baseUrlInput.value = d.base_url || '';
         }
 
+        // Render Rival Matchup Conflicts Alert (e.g. Jimmy & Oliver on same team)
+        if (el.rivalConflictContainer) {
+            if (d.rival_conflicts && d.rival_conflicts.length > 0) {
+                el.rivalConflictContainer.innerHTML = d.rival_conflicts.map(c => `
+                    <div class="conflict-alert" style="background:#451a1a;border:1px solid #ef4444;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem;color:#fecaca;box-shadow:0 4px 15px rgba(239,68,68,0.25);">
+                        <div>
+                            <div style="font-weight:800;color:#f87171;font-size:0.95rem;display:flex;align-items:center;gap:0.4rem;">
+                                <span>⚠️</span>
+                                <span>RIVAL MATCHUP CONFLICT: Both Opponents on Same Team!</span>
+                            </div>
+                            <p style="margin:0.35rem 0 0 0;font-size:0.85rem;color:#fca5a5;line-height:1.4;">
+                                <strong>${escapeHtml(c.player1.name)}</strong> and <strong>${escapeHtml(c.player2.name)}</strong> are both registered on <strong>${escapeHtml(c.team_name)}</strong>. Per the match sheet, they are paired head-to-head rivals and must play on opposing teams!
+                            </p>
+                        </div>
+                        <button type="button" class="btn btn-warning btn-sm btn-conflict-reset" 
+                            data-id="${c.player2.id}" data-name="${escapeHtml(c.player2.name)}" data-team="${escapeHtml(c.team_name)}">
+                            ↺ Reset ${escapeHtml(c.player2.name)}'s Pick
+                        </button>
+                    </div>
+                `).join('');
+
+                el.rivalConflictContainer.querySelectorAll('.btn-conflict-reset').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        const id = parseInt(this.getAttribute('data-id'), 10);
+                        const name = this.getAttribute('data-name');
+                        const team = this.getAttribute('data-team');
+                        openAdminConfirm(
+                            `Reset ${name}'s pick?`,
+                            `This will remove ${name} from ${team}. ${name} can then open their link and join the opposing team to balance the squads!`,
+                            () => handleResetPlayerPick(id),
+                            'Reset Pick',
+                            'btn-warning'
+                        );
+                    });
+                });
+            } else {
+                el.rivalConflictContainer.innerHTML = '';
+            }
+        }
+
         // Render Side-by-Side Match Boards
         renderMatchBoards(d.teams);
 
@@ -351,6 +394,7 @@
                             <span style="color:var(--text-dim);font-size:0.75rem;min-width:20px;">#${index + 1}</span>
                             <span style="font-weight:600;">${escapeHtml(p.name)}</span>
                             <span class="tier-badge ${tierClass}">${tierLabel}</span>
+                            ${p.rival_name ? `<span class="rival-badge" style="font-size:0.68rem;background:rgba(239,68,68,0.15);color:#fca5a5;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25);margin-left:4px;">⚔️ vs ${escapeHtml(p.rival_name)}</span>` : ''}
                         </div>
                         <div class="player-row-actions">
                             <button type="button" class="btn btn-outline btn-sm btn-reset-pick" 
@@ -420,6 +464,7 @@
                         <span style="color:var(--text-dim);font-size:0.75rem;">#${index + 1}</span>
                         <span style="font-weight:600;">${escapeHtml(p.name)}</span>
                         <span class="tier-badge ${tierClass}">${tierLabel}</span>
+                        ${p.rival_name ? `<span class="rival-badge" style="font-size:0.68rem;background:rgba(239,68,68,0.15);color:#fca5a5;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25);margin-left:4px;">⚔️ vs ${escapeHtml(p.rival_name)}</span>` : ''}
                     </div>
                     <div class="player-row-actions">
                         <button type="button" class="btn btn-outline btn-sm btn-copy-single-link" 
@@ -465,6 +510,7 @@
                     <div class="player-info" style="min-width:200px;">
                         <span style="font-weight:700;">${escapeHtml(p.name)}</span>
                         <span class="tier-badge ${tierClass}">${tierLabel}</span>
+                        ${p.rival_name ? `<span class="rival-badge" style="font-size:0.68rem;background:rgba(239,68,68,0.15);color:#fca5a5;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25);margin-left:4px;">⚔️ vs ${escapeHtml(p.rival_name)}</span>` : ''}
                         ${statusText}
                     </div>
                     <div class="player-row-actions">

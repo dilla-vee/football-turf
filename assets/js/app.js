@@ -175,7 +175,9 @@
 
             // Spots indicator text (Do NOT show tier badges/names; show viewer spots)
             let spotsHtml = '';
-            if (team.spots_left <= 0) {
+            if (team.blocked_by_rival) {
+                spotsHtml = `<span class="spots-count spots-none">Blocked (${escapeHtml(team.rival_name || 'Rival')} on this team)</span>`;
+            } else if (team.spots_left <= 0) {
                 spotsHtml = `<span class="spots-count spots-none">Full for your tier</span>`;
             } else if (team.spots_left === 1) {
                 spotsHtml = `<span class="spots-count spots-last">1 spot remaining for you</span>`;
@@ -193,6 +195,8 @@
                 }
             } else if (state.pickingLocked) {
                 buttonHtml = `<button class="pick-btn" disabled>Picking Locked by Admin</button>`;
+            } else if (team.blocked_by_rival) {
+                buttonHtml = `<button class="pick-btn" disabled style="background:#451a1a;color:#fca5a5;border:1px solid #7f1d1d;cursor:not-allowed;">Blocked: Opponent ${escapeHtml(team.rival_name || '')} is here</button>`;
             } else if (team.is_full_for_viewer) {
                 buttonHtml = `<button class="pick-btn" disabled>Team Full for You</button>`;
             } else {
@@ -201,6 +205,16 @@
                         Pick ${escapeHtml(team.name)}
                     </button>
                 `;
+            }
+
+            // Only choice badge text
+            let onlyOptionPill = '';
+            if (isOnlyOption) {
+                if (state.player && state.player.rival_name) {
+                    onlyOptionPill = `<div class="only-choice-pill">Only Choice (${escapeHtml(state.player.rival_name)} on rival team)</div>`;
+                } else {
+                    onlyOptionPill = `<div class="only-choice-pill">Only Choice Left</div>`;
+                }
             }
 
             // Roster list (Names only - strictly no tier information revealed)
@@ -223,7 +237,7 @@
 
             return `
                 <div class="${cardClasses}" id="teamCard-${team.id}">
-                    ${isOnlyOption ? `<div class="only-choice-pill">Only Choice Left</div>` : ''}
+                    ${onlyOptionPill}
                     
                     <div class="team-header">
                         <div class="team-crest">${crestIcon}</div>
@@ -272,9 +286,14 @@
     function openConfirmModal(teamId, teamName) {
         state.pendingTeamPick = { id: teamId, name: teamName };
 
+        let rivalNotice = '';
+        if (state.player && state.player.rival_name) {
+            rivalNotice = `<br><span style="color:#6ee7b7;font-size:0.875rem;">⚔️ You will be facing your head-to-head opponent <strong>${escapeHtml(state.player.rival_name)}</strong> on the opposite team!</span><br>`;
+        }
+
         elements.modalTitle.textContent = `Pick ${teamName}?`;
         elements.modalBody.innerHTML = `
-            Are you sure you want to join <strong>${escapeHtml(teamName)}</strong>?<br><br>
+            Are you sure you want to join <strong>${escapeHtml(teamName)}</strong>?<br>${rivalNotice}<br>
             <span style="color:#fbbf24;font-size:0.875rem;">⚠️ This choice is permanent and cannot be changed once submitted.</span>
         `;
         elements.modalBtnConfirm.textContent = `Confirm ${teamName}`;
