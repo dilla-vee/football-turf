@@ -52,9 +52,12 @@
             const res = await fetch('api/match_state.php', {
                 headers: { 'Accept': 'application/json' }
             });
+            if (!res.ok) {
+                return;
+            }
             const data = await res.json();
 
-            if (!res.ok || !data.success) {
+            if (!data.success) {
                 console.warn('Match state polling returned error:', data.error);
                 return;
             }

@@ -7,8 +7,14 @@
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../db.php';
 
+// Non-blocking session check: read session and close file lock immediately to prevent request queuing
+$isAdminAuth = false;
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
+    $isAdminAuth = !empty($_SESSION[ADMIN_SESSION_KEY]);
+    session_write_close();
+} else {
+    $isAdminAuth = !empty($_SESSION[ADMIN_SESSION_KEY]);
 }
 
 header('Content-Type: application/json; charset=utf-8');
@@ -16,7 +22,8 @@ header('Cache-Control: no-cache, no-store, must-revalidate');
 
 // Helper to check admin authentication
 function isAdminAuthenticated(): bool {
-    return !empty($_SESSION[ADMIN_SESSION_KEY]);
+    global $isAdminAuth;
+    return $isAdminAuth;
 }
 
 try {
@@ -33,7 +40,11 @@ try {
     }
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+    $msg = $e->getMessage();
+    if (stripos($msg, 'match_state') !== false || stripos($msg, 'goals') !== false) {
+        $msg = "Database tables 'match_state' or 'goals' are missing. Please run supabase_migration.sql in your Supabase SQL Editor.";
+    }
+    echo json_encode(['success' => false, 'error' => 'Server error: ' . $msg]);
 }
 
 /**
