@@ -7,8 +7,12 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install pdo pdo_pgsql pdo_mysql \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Enable Apache mod_rewrite
-RUN a2enmod rewrite
+# Enable Apache mod_rewrite & mod_env
+RUN a2enmod rewrite env
+
+# Configure Apache to pass all environment variables from Render container to PHP scripts
+RUN echo "PassEnv DATABASE_URL APP_BASE_URL PORT DB_HOST DB_PORT DB_USER DB_PASS DB_NAME DB_DRIVER DB_SSLMODE RENDER RENDER_SERVICE_ID" > /etc/apache2/conf-available/docker-env.conf \
+    && a2enconf docker-env
 
 # Set working directory
 WORKDIR /var/www/html

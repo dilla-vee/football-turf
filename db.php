@@ -49,12 +49,21 @@ function getDb(): PDO {
             $isApi = (strpos($_SERVER['REQUEST_URI'] ?? '', 'api.php') !== false) || 
                      (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
             
+            // Helpful diagnostics if on Render but DATABASE_URL was not set
+            $isRender = !empty(getenv('RENDER')) || !empty($_SERVER['RENDER']) || !empty(getenv('RENDER_SERVICE_ID'));
+            $isMissingDbUrl = ($driver === 'mysql' && DB_HOST === '127.0.0.1');
+
+            $errorMsg = 'Database connection failed: ' . $e->getMessage();
+            if ($isMissingDbUrl && $isRender) {
+                $errorMsg = 'DATABASE_URL is missing in Render! Please go to Render Dashboard -> Environment and add your Supabase connection string as DATABASE_URL.';
+            }
+
             if ($isApi) {
                 header('Content-Type: application/json; charset=utf-8');
                 http_response_code(500);
                 echo json_encode([
                     'success' => false,
-                    'error' => 'Database connection failed: ' . $e->getMessage()
+                    'error' => $errorMsg
                 ]);
                 exit;
             } else {
@@ -64,12 +73,7 @@ function getDb(): PDO {
                 echo '.box{max-width:540px;margin:3rem auto;background:#0f2c1d;padding:2rem;border-radius:16px;border:1px solid #10b981;box-shadow:0 10px 25px rgba(0,0,0,0.5);}';
                 echo 'h2{color:#f87171;margin-bottom:1rem;}p{color:#a7f3d0;line-height:1.6;}</style></head><body>';
                 echo '<div class="box"><h2>Database Connection Failed</h2>';
-                echo '<p>Could not connect to the database (' . htmlspecialchars($driver) . ').</p>';
-                if ($driver === 'pgsql') {
-                    echo '<p>Please check your Supabase connection string / <code>DATABASE_URL</code> environment variable.</p>';
-                } else {
-                    echo '<p>If running locally on XAMPP, ensure MySQL is started and <code>schema.sql</code> is imported.</p>';
-                }
+                echo '<p>' . htmlspecialchars($errorMsg) . '</p>';
                 echo '<p style="font-size:0.85rem;color:#94a3b8;margin-top:1rem;word-break:break-all;">' . htmlspecialchars($e->getMessage()) . '</p></div>';
                 echo '</body></html>';
                 exit;
