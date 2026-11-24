@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: turf-teams
+    runtime: docker
+    plan: free
+    region: frankfurt # or oregon, ohio, singapore
+    branch: main
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        sync: false # User pastes their Supabase connection string here
+      - key: APP_BASE_URL
+        sync: false # e.g. https://turf-teams.onrender.com
