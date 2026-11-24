@@ -19,8 +19,14 @@ function getEnvVar(string $key, ?string $default = null): ?string {
     return $default;
 }
 
-// 1. Check for cloud DATABASE_URL
-$databaseUrl = getEnvVar('DATABASE_URL');
+// 1. Check for cloud DATABASE_URL (supports DATABASE_URL, DATABASE_URI, POSTGRES_URL, or user custom keys)
+$databaseUrl = getEnvVar('DATABASE_URL')
+    ?: (getEnvVar('DATABASE_URI')
+    ?: (getEnvVar('POSTGRES_URL')
+    ?: (getEnvVar('turf2')
+    ?: (getEnvVar('turrf')
+    ?: (getEnvVar('TURF_DB')
+    ?: null)))));
 
 // Also check for .env file if present
 if (empty($databaseUrl) && file_exists(__DIR__ . '/.env')) {
