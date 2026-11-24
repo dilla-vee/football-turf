@@ -285,6 +285,12 @@
         if (!state.data) return;
         const d = state.data;
 
+        // Share roster data with match scoreboard module
+        window.turfAdminData = d;
+        if (typeof window.renderAdminMatchRosterSync === 'function') {
+            window.renderAdminMatchRosterSync(d);
+        }
+
         // Stats Counters
         if (el.statSkilled) el.statSkilled.textContent = `${d.stats.skilled_count} / ${d.stats.skilled_target}`;
         if (el.statRegular) el.statRegular.textContent = `${d.stats.regular_count} / ${d.stats.regular_target}`;

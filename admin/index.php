@@ -156,6 +156,13 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
                 </div>
             </section>
 
+            <!-- ==========================================
+                 Live Match & Scoreboard Section
+                 ========================================== -->
+            <section id="adminMatchSection" style="margin-bottom:2rem;">
+                <div style="text-align:center; padding:1.5rem; color:var(--text-dim);">Loading live match scoreboard...</div>
+            </section>
+
             <!-- Live Match Board (Side-by-side Runda FC vs Makongeni FC) -->
             <section style="margin-bottom:2rem;">
                 <h2 style="font-size:1.25rem; font-weight:800; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
@@ -289,7 +296,57 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
         </div>
     </div>
 
-    <!-- Admin Application Script -->
+    <!-- ==========================================
+         Record Goal Action Sheet / Modal
+         ========================================== -->
+    <div class="modal-overlay" id="recordGoalModalOverlay" role="dialog" aria-modal="true">
+        <div class="modal-box" style="max-width:440px;">
+            <div style="font-size:2.5rem; margin-bottom:0.5rem;">⚽</div>
+            <h3 class="modal-title" id="goalModalPlayerName">Record Goal</h3>
+            <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:1.5rem;">
+                Player registered with <strong id="goalModalTeamName" style="color:var(--grass-light);">Team</strong>. Select goal type below:
+            </p>
+            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                <button type="button" class="btn btn-primary" id="btnRecordNormalGoal" style="width:100%; min-height:52px; justify-content:center; font-size:1.05rem;">
+                    ⚽ Goal (+1 for Scorer Team)
+                </button>
+                <button type="button" class="btn btn-danger" id="btnRecordOwnGoal" style="width:100%; min-height:52px; justify-content:center; font-size:1.05rem; background:#7f1d1d; border-color:#ef4444; color:#fca5a5;">
+                    🔴 Own Goal (OG) (+1 for Opponent)
+                </button>
+                <button type="button" class="btn btn-outline" id="btnCancelRecordGoal" style="width:100%; min-height:44px; justify-content:center;">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         Edit Goal Minute Modal
+         ========================================== -->
+    <div class="modal-overlay" id="editGoalModalOverlay" role="dialog" aria-modal="true">
+        <div class="modal-box" style="max-width:400px;">
+            <div style="font-size:2rem; margin-bottom:0.5rem;">⏱️</div>
+            <h3 class="modal-title" id="editGoalPlayerTitle">Edit Goal Time</h3>
+            <div style="margin-top:1rem; text-align:left;">
+                <input type="hidden" id="editGoalIdInput">
+                <div class="form-group">
+                    <label for="editGoalMinuteInput" class="form-label">Match Minute</label>
+                    <input type="number" id="editGoalMinuteInput" class="form-input" min="0" max="150" required placeholder="e.g. 23">
+                </div>
+                <div class="form-group">
+                    <label for="editGoalSecondInput" class="form-label">Match Second (0-59)</label>
+                    <input type="number" id="editGoalSecondInput" class="form-input" min="0" max="59" value="0" placeholder="e.g. 15">
+                </div>
+                <div class="modal-actions" style="margin-top:1.5rem;">
+                    <button type="button" class="modal-btn modal-btn-cancel" id="btnCancelEditGoal">Cancel</button>
+                    <button type="button" class="modal-btn modal-btn-confirm" id="btnSaveEditGoal">Save Time</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Application Scripts -->
     <script src="../assets/js/admin.js"></script>
+    <script src="../assets/js/admin_match.js"></script>
 </body>
 </html>

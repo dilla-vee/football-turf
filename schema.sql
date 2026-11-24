@@ -8,9 +8,13 @@ COLLATE utf8mb4_unicode_ci;
 USE `turf_teams`;
 
 -- 1. Teams Table
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS `goals`;
+DROP TABLE IF EXISTS `match_state`;
 DROP TABLE IF EXISTS `players`;
 DROP TABLE IF EXISTS `teams`;
 DROP TABLE IF EXISTS `settings`;
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE `teams` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -85,3 +89,36 @@ INSERT INTO `players` (`id`, `name`, `tier`, `token`, `team_id`, `picked_at`) VA
 (17, 'Zack', 'regular', '651490f143c22b0ae259439dcc0a8c9d', NULL, NULL),
 (18, 'Joe', 'regular', '74ef21931f2e347b0ec6c3e3e9712932', NULL, NULL),
 (19, 'Demicko', 'regular', 'c0e7cd9a624f32e7c444a009213865b6', NULL, NULL);
+
+-- ============================================================================
+-- 5. Match State & Live Scoreboard
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS `match_state` (
+    `id` INT PRIMARY KEY,
+    `state` ENUM('setup', 'live', 'finished') NOT NULL DEFAULT 'setup',
+    `started_at` DATETIME NULL,
+    `ended_at` DATETIME NULL,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `match_state` (`id`, `state`, `started_at`, `ended_at`) 
+VALUES (1, 'setup', NULL, NULL)
+ON DUPLICATE KEY UPDATE `id` = `id`;
+
+-- ============================================================================
+-- 6. Match Goals Tracking
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS `goals` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `player_id` INT NOT NULL,
+    `team_id` INT NOT NULL,
+    `is_own_goal` TINYINT(1) NOT NULL DEFAULT 0,
+    `match_minute` INT NOT NULL,
+    `match_second` INT NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_goals_team` (`team_id`),
+    INDEX `idx_goals_player` (`player_id`),
+    INDEX `idx_goals_created` (`created_at`),
+    CONSTRAINT `fk_goals_player` FOREIGN KEY (`player_id`) REFERENCES `players` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_goals_team` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

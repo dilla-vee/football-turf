@@ -49,6 +49,9 @@ $token = trim($_GET['t'] ?? '');
 
         <!-- Main Player App View -->
         <main id="appView" style="display:none;">
+            <!-- Live Match Scoreboard & Goal Feed Container -->
+            <div id="matchScoreboardContainer"></div>
+
             <!-- Player Identification Card -->
             <section class="player-welcome-card">
                 <span class="welcome-label">Player Pass</span>
@@ -100,7 +103,8 @@ $token = trim($_GET['t'] ?? '');
         </div>
     </div>
 
-    <!-- Application Script -->
+    <!-- Application Scripts -->
+    <script src="assets/js/match.js"></script>
     <script src="assets/js/app.js"></script>
 </body>
 </html>

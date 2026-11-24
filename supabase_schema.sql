@@ -97,3 +97,35 @@ INSERT INTO players (id, name, tier, token, team_id, picked_at) VALUES
 
 -- Reset sequence to continue after highest ID
 SELECT setval('players_id_seq', (SELECT MAX(id) FROM players));
+
+-- ============================================================================
+-- 5. Match State & Live Scoreboard
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS match_state (
+    id INT PRIMARY KEY,
+    state VARCHAR(20) NOT NULL DEFAULT 'setup',
+    started_at TIMESTAMPTZ NULL,
+    ended_at TIMESTAMPTZ NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO match_state (id, state, started_at, ended_at) 
+VALUES (1, 'setup', NULL, NULL)
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================================
+-- 6. Match Goals Tracking
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS goals (
+    id SERIAL PRIMARY KEY,
+    player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    team_id INT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    is_own_goal BOOLEAN NOT NULL DEFAULT FALSE,
+    match_minute INT NOT NULL,
+    match_second INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_goals_team ON goals(team_id);
+CREATE INDEX IF NOT EXISTS idx_goals_player ON goals(player_id);
+CREATE INDEX IF NOT EXISTS idx_goals_created ON goals(created_at);
