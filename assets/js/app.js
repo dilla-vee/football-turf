@@ -298,7 +298,8 @@
         elements.modalBtnConfirm.textContent = 'Locking your pick...';
 
         try {
-            const response = await fetch('api.php', {
+            const pickUrl = `api.php?action=pick&t=${encodeURIComponent(state.token)}&team_id=${encodeURIComponent(state.pendingTeamPick.id)}`;
+            const response = await fetch(pickUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

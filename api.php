@@ -11,8 +11,8 @@ require_once __DIR__ . '/db.php';
  * Handle live status polling for the player page.
  * Returns only slot counts relevant to the viewer's tier, without revealing tier badges/info.
  */
-function handleStatus(PDO $pdo): void {
-    $token = trim($_GET['t'] ?? ($_POST['t'] ?? ''));
+function handleStatus(PDO $pdo, array $jsonInput = []): void {
+    $token = trim($_GET['t'] ?? ($_POST['t'] ?? ($jsonInput['t'] ?? '')));
 
     if (empty($token)) {
         http_response_code(400);
@@ -121,17 +121,16 @@ function handleStatus(PDO $pdo): void {
 /**
  * Handle race-condition safe atomic team selection using MySQL InnoDB row locking.
  */
-function handlePick(PDO $pdo): void {
+function handlePick(PDO $pdo, array $jsonInput = []): void {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
         http_response_code(405);
         echo json_encode(['success' => false, 'error' => 'Method not allowed. Use POST.']);
         return;
     }
 
-    // Read payload (supports JSON or form POST)
-    $input = json_decode(file_get_contents('php://input'), true);
-    $token = trim($input['t'] ?? ($_POST['t'] ?? ''));
-    $requestedTeamId = (int)($input['team_id'] ?? ($_POST['team_id'] ?? 0));
+    // Read payload (supports JSON, POST or GET fallback)
+    $token = trim($jsonInput['t'] ?? ($_POST['t'] ?? ($_GET['t'] ?? '')));
+    $requestedTeamId = (int)($jsonInput['team_id'] ?? ($_POST['team_id'] ?? ($_GET['team_id'] ?? 0)));
 
     if (empty($token) || $requestedTeamId <= 0) {
         http_response_code(400);
@@ -258,15 +257,21 @@ if (!headers_sent()) {
     header('Cache-Control: no-cache, no-store, must-revalidate');
 }
 
-$action = $_GET['action'] ?? ($_POST['action'] ?? 'status');
+$rawInput = file_get_contents('php://input');
+$jsonInput = json_decode($rawInput, true) ?: [];
+
+$action = $_GET['action'] 
+    ?? ($_POST['action'] 
+    ?? ($jsonInput['action'] 
+    ?? 'status'));
 
 try {
     $pdo = getDb();
 
     if ($action === 'status') {
-        handleStatus($pdo);
+        handleStatus($pdo, $jsonInput);
     } elseif ($action === 'pick') {
-        handlePick($pdo);
+        handlePick($pdo, $jsonInput);
     } else {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Unknown action requested']);
