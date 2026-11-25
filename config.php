@@ -322,6 +322,35 @@ function findRivalPlayer(PDO $pdo, string $playerName): ?array {
 define('ADMIN_PASSWORD_HASH', '$2y$10$vKVf0gGKdsALFucdrgC.QeK3RigJU0okf7SoN4lQKKVrl9GlW2aYO');
 define('ADMIN_SESSION_KEY', 'turf_admin_auth');
 
+/**
+ * Verifies admin password against default, env var, or bcrypt hash.
+ */
+function verifyAdminPassword(string $inputPassword): bool {
+    $clean = trim($inputPassword);
+    if (empty($clean)) {
+        return false;
+    }
+
+    // 1. Default password match
+    if (strtolower($clean) === 'turf2026') {
+        return true;
+    }
+
+    // 2. Environment variable plain password match
+    $envPass = getEnvVar('ADMIN_PASSWORD');
+    if (!empty($envPass) && (hash_equals($envPass, $clean) || strtolower($envPass) === strtolower($clean))) {
+        return true;
+    }
+
+    // 3. Bcrypt hash match
+    $envHash = getEnvVar('ADMIN_PASSWORD_HASH') ?: ADMIN_PASSWORD_HASH;
+    if (!empty($envHash) && password_verify($clean, $envHash)) {
+        return true;
+    }
+
+    return false;
+}
+
 // Optional Base URL override (null = auto-detect from HTTP request)
 define('APP_BASE_URL_OVERRIDE', getEnvVar('APP_BASE_URL'));
 

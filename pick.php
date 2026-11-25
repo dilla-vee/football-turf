@@ -136,12 +136,5 @@ $token = trim($_GET['t'] ?? '');
             }
         });
     </script>
-                const closedIcon = document.getElementById('closedAlertIcon');
-                if (closedIcon) closedIcon.innerHTML = TurfIcons.icon('lock', { width: 18, height: 18 });
-                const modalBox = document.getElementById('modalIconBox');
-                if (modalBox) modalBox.innerHTML = TurfIcons.icon('shield', { width: 44, height: 44, class: 'text-brand' });
-            }
-        });
-    </script>
 </body>
 </html>

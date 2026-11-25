@@ -81,7 +81,10 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
              1. Admin Login View (When Not Authenticated)
              ========================================== -->
         <div id="loginView" style="<?php echo $isLoggedIn ? 'display:none;' : 'display:block;'; ?>">
-            <div class="error-screen" style="max-width:440px; margin-top:4rem;">
+            <div style="display:flex; justify-content:flex-end; max-width:440px; margin:2.5rem auto 0; padding:0 0.5rem;">
+                <button type="button" class="theme-toggle-btn" onclick="TurfTheme.toggle()" aria-label="Toggle theme"></button>
+            </div>
+            <div class="error-screen" style="max-width:440px; margin-top:0.75rem;">
                 <div id="loginShieldBox" style="margin-bottom:1.25rem;"></div>
                 <h2 style="font-size:1.5rem; color:var(--text-primary); margin-bottom:0.5rem; letter-spacing:-0.02em;">Match Organizer Portal</h2>
                 <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:1.5rem; line-height:1.5;">

@@ -91,9 +91,9 @@
             btns.forEach(btn => {
                 const isDark = (mode === 'dark');
                 btn.setAttribute('aria-label', isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode');
-                btn.innerHTML = `<span class="theme-toggle-indicator" style="display:inline-flex;align-items:center;gap:0.35rem;">
+                btn.innerHTML = `<span class="theme-toggle-indicator" style="display:inline-flex;align-items:center;gap:0.4rem;">
                     ${generateIcon(isDark ? 'sun' : 'moon', { width: 14, height: 14 })}
-                    <span style="font-size:0.75rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">${isDark ? 'LIGHT' : 'DARK'}</span>
+                    <span style="font-size:0.75rem;font-weight:700;letter-spacing:0.04em;">${isDark ? 'Light Mode' : 'Dark Mode'}</span>
                 </span>`;
             });
         },
@@ -105,6 +105,15 @@
 
     // Auto-init theme as early as possible
     TurfTheme.init();
+
+    // Ensure buttons are populated once DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            TurfTheme.updateToggleButtons(TurfTheme.get());
+        });
+    } else {
+        TurfTheme.updateToggleButtons(TurfTheme.get());
+    }
 
     window.TurfIcons = TurfIcons;
     window.TurfTheme = TurfTheme;

@@ -122,7 +122,7 @@ function handleLogin(): void {
         return;
     }
 
-    if (password_verify($password, ADMIN_PASSWORD_HASH)) {
+    if (verifyAdminPassword($password)) {
         $_SESSION[ADMIN_SESSION_KEY] = true;
         echo json_encode(['success' => true, 'message' => 'Login successful.']);
     } else {
