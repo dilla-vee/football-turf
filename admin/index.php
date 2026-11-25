@@ -345,6 +345,75 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
         </div>
     </div>
 
+    <!-- ==========================================
+         Manual Key-In Score / Goal Modal
+         ========================================== -->
+    <div class="modal-overlay" id="keyInScoreModalOverlay" role="dialog" aria-modal="true">
+        <div class="modal-box" style="max-width:440px;">
+            <div style="font-size:2.5rem; margin-bottom:0.5rem;">⚽</div>
+            <h3 class="modal-title">Key in Score / Goal</h3>
+            <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:1.25rem;">
+                Manually record a goal for either squad at any minute.
+            </p>
+            <form id="keyInScoreForm" style="text-align:left;">
+                <!-- Team Selection Buttons -->
+                <div class="form-group">
+                    <label class="form-label">Team Credited With Goal</label>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                        <button type="button" class="btn btn-outline keyin-team-btn active" id="keyInTeamRunda" data-team="runda" style="border-color:#10b981; color:#34d399; font-weight:700; padding:0.6rem; justify-content:center;">
+                            🟢 Runda FC
+                        </button>
+                        <button type="button" class="btn btn-outline keyin-team-btn" id="keyInTeamMako" data-team="makongeni" style="border-color:var(--border-pitch); color:var(--text-secondary); font-weight:700; padding:0.6rem; justify-content:center;">
+                            🔵 Makongeni FC
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Goal Scorer Dropdown -->
+                <div class="form-group">
+                    <label for="keyInPlayerSelect" class="form-label">Goal Scorer (Player)</label>
+                    <select id="keyInPlayerSelect" class="form-select" required>
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+
+                <!-- Goal Type Choice -->
+                <div class="form-group">
+                    <label class="form-label">Goal Type</label>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; cursor:pointer; background:rgba(255,255,255,0.03); padding:0.6rem; border-radius:var(--radius-sm); border:1px solid var(--border-pitch);">
+                            <input type="radio" name="keyInGoalType" value="normal" checked>
+                            <span style="font-weight:600;">⚽ Normal Goal</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; cursor:pointer; background:rgba(255,255,255,0.03); padding:0.6rem; border-radius:var(--radius-sm); border:1px solid var(--border-pitch);">
+                            <input type="radio" name="keyInGoalType" value="og">
+                            <span style="font-weight:600; color:#fca5a5;">🔴 Own Goal (OG)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Minute & Second -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                    <div class="form-group">
+                        <label for="keyInMinuteInput" class="form-label">Match Minute</label>
+                        <input type="number" id="keyInMinuteInput" class="form-input" min="0" max="150" value="0" required placeholder="e.g. 23">
+                    </div>
+                    <div class="form-group">
+                        <label for="keyInSecondInput" class="form-label">Second (0-59)</label>
+                        <input type="number" id="keyInSecondInput" class="form-input" min="0" max="59" value="0" placeholder="0">
+                    </div>
+                </div>
+
+                <div class="modal-actions" style="margin-top:1.5rem;">
+                    <button type="button" class="modal-btn modal-btn-cancel" id="btnCancelKeyInScore">Cancel</button>
+                    <button type="submit" class="modal-btn modal-btn-confirm" id="btnSubmitKeyInScore" style="background:var(--grass-light); color:#000; font-weight:800;">
+                        ⚽ Save Goal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Admin Application Scripts -->
     <script src="../assets/js/admin.js"></script>
     <script src="../assets/js/admin_match.js"></script>

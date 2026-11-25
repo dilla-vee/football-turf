@@ -231,7 +231,7 @@ function handlePostMatchAction(PDO $pdo): void {
 
     switch ($action) {
         case 'start_match':
-            handleStartMatch($pdo);
+            handleStartMatch($pdo, $json);
             break;
 
         case 'end_match':
@@ -266,9 +266,9 @@ function handlePostMatchAction(PDO $pdo): void {
 }
 
 /**
- * Start Match: enforces 18 picked players, transitions to 'live', and locks picking.
+ * Start Match: enforces 18 picked players (or admin override force), transitions to 'live', and locks picking.
  */
-function handleStartMatch(PDO $pdo): void {
+function handleStartMatch(PDO $pdo, array $jsonInput = []): void {
     $pdo->beginTransaction();
     try {
         // Verify current state
@@ -289,18 +289,22 @@ function handleStartMatch(PDO $pdo): void {
             return;
         }
 
-        // Server-side enforcement: Check all 18 players have picked
+        // Server-side enforcement: Check all 18 players have picked (unless force is requested)
+        $force = !empty($_POST['force'] ?? ($jsonInput['force'] ?? false));
         $stmtCount = $pdo->query("SELECT COUNT(*) FROM players WHERE team_id IS NOT NULL");
         $pickedCount = (int)$stmtCount->fetchColumn();
         $requiredPlayers = 18;
 
-        if ($pickedCount < $requiredPlayers) {
+        if ($pickedCount < $requiredPlayers && !$force) {
             $pdo->rollBack();
             $remaining = $requiredPlayers - $pickedCount;
             http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'error' => "Cannot start match: {$remaining} player(s) still need to pick their team ({$pickedCount}/{$requiredPlayers} picked)."
+                'error' => "Cannot start match: {$remaining} player(s) still need to pick their team ({$pickedCount}/{$requiredPlayers} picked).",
+                'can_force' => true,
+                'picked_count' => $pickedCount,
+                'remaining' => $remaining
             ]);
             return;
         }
@@ -366,11 +370,12 @@ function handleEndMatch(PDO $pdo): void {
 }
 
 /**
- * Record Goal: records normal goal or own goal, auto-captures server match time.
+ * Record Goal: records normal goal or own goal, supports custom minute and auto-kickoff from setup.
  */
 function handleRecordGoal(PDO $pdo, array $jsonInput): void {
     $playerId = (int)($_POST['player_id'] ?? ($jsonInput['player_id'] ?? 0));
     $isOwnGoal = !empty($_POST['is_own_goal'] ?? ($jsonInput['is_own_goal'] ?? false));
+    $chosenTeamId = (int)($_POST['team_id'] ?? ($jsonInput['team_id'] ?? 0));
 
     if ($playerId <= 0) {
         http_response_code(400);
@@ -380,15 +385,24 @@ function handleRecordGoal(PDO $pdo, array $jsonInput): void {
 
     $pdo->beginTransaction();
     try {
-        // Verify match is live
+        // Verify match state
         $stmtState = $pdo->query("SELECT state, started_at FROM match_state WHERE id = 1 FOR UPDATE");
         $stateRow = $stmtState->fetch();
+        $currentState = $stateRow['state'] ?? 'setup';
 
-        if (($stateRow['state'] ?? '') !== 'live' || empty($stateRow['started_at'])) {
+        if ($currentState === 'finished') {
             $pdo->rollBack();
             http_response_code(409);
-            echo json_encode(['success' => false, 'error' => 'Goals can only be recorded while the match is LIVE.']);
+            echo json_encode(['success' => false, 'error' => 'Match is already finished. Reset match to record new goals.']);
             return;
+        }
+
+        // If in setup state, automatically transition to live
+        if ($currentState === 'setup' || empty($stateRow['started_at'])) {
+            $pdo->exec("UPDATE match_state SET state = 'live', started_at = NOW(), ended_at = NULL WHERE id = 1");
+            $pdo->exec("UPDATE settings SET setting_value = '1' WHERE setting_key = 'picking_locked'");
+            $stateRow['state'] = 'live';
+            $stateRow['started_at'] = date('Y-m-d H:i:s');
         }
 
         // Verify player and get their registered team
@@ -396,10 +410,23 @@ function handleRecordGoal(PDO $pdo, array $jsonInput): void {
         $stmtPlayer->execute([$playerId]);
         $player = $stmtPlayer->fetch();
 
-        if (!$player || empty($player['team_id'])) {
+        if (!$player) {
             $pdo->rollBack();
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Player does not exist or has not been assigned a team.']);
+            echo json_encode(['success' => false, 'error' => 'Player does not exist.']);
+            return;
+        }
+
+        // If player has not yet picked a team, assign them to chosenTeamId if specified
+        if (empty($player['team_id']) && $chosenTeamId > 0) {
+            $pdo->prepare("UPDATE players SET team_id = ?, picked_at = NOW() WHERE id = ?")->execute([$chosenTeamId, $playerId]);
+            $player['team_id'] = $chosenTeamId;
+        }
+
+        if (empty($player['team_id'])) {
+            $pdo->rollBack();
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Player does not have a team assigned.']);
             return;
         }
 
@@ -420,11 +447,20 @@ function handleRecordGoal(PDO $pdo, array $jsonInput): void {
             }
         }
 
-        // Calculate match minute and second automatically from server start time
-        $startedAtTs = strtotime($stateRow['started_at']);
-        $elapsedSec = max(0, time() - $startedAtTs);
-        $matchMinute = (int)floor($elapsedSec / 60);
-        $matchSecond = (int)($elapsedSec % 60);
+        // Check if custom match minute/second was passed (manual key-in)
+        $rawMin = $_POST['match_minute'] ?? ($jsonInput['match_minute'] ?? null);
+        $rawSec = $_POST['match_second'] ?? ($jsonInput['match_second'] ?? null);
+
+        if ($rawMin !== null && is_numeric($rawMin) && (int)$rawMin >= 0) {
+            $matchMinute = (int)$rawMin;
+            $matchSecond = ($rawSec !== null && is_numeric($rawSec) && (int)$rawSec >= 0 && (int)$rawSec < 60) ? (int)$rawSec : 0;
+        } else {
+            // Calculate match minute and second automatically from server start time
+            $startedAtTs = !empty($stateRow['started_at']) ? strtotime($stateRow['started_at']) : time();
+            $elapsedSec = max(0, time() - $startedAtTs);
+            $matchMinute = (int)floor($elapsedSec / 60);
+            $matchSecond = (int)($elapsedSec % 60);
+        }
 
         // Insert goal row
         $stmtInsert = $pdo->prepare("

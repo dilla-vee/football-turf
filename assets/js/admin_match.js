@@ -32,6 +32,14 @@
         editGoalSecondInput: document.getElementById('editGoalSecondInput'),
         btnSaveEditGoal: document.getElementById('btnSaveEditGoal'),
         btnCancelEditGoal: document.getElementById('btnCancelEditGoal'),
+        keyInModalOverlay: document.getElementById('keyInScoreModalOverlay'),
+        keyInForm: document.getElementById('keyInScoreForm'),
+        keyInTeamRunda: document.getElementById('keyInTeamRunda'),
+        keyInTeamMako: document.getElementById('keyInTeamMako'),
+        keyInPlayerSelect: document.getElementById('keyInPlayerSelect'),
+        keyInMinuteInput: document.getElementById('keyInMinuteInput'),
+        keyInSecondInput: document.getElementById('keyInSecondInput'),
+        btnCancelKeyInScore: document.getElementById('btnCancelKeyInScore'),
         toastContainer: document.getElementById('toastContainer')
     };
 
@@ -69,6 +77,33 @@
         if (el.editModalOverlay) {
             el.editModalOverlay.addEventListener('click', (e) => {
                 if (e.target === el.editModalOverlay) closeEditGoalModal();
+            });
+        }
+
+        // Manual Key-In Score Modal
+        if (el.btnCancelKeyInScore) {
+            el.btnCancelKeyInScore.addEventListener('click', closeKeyInScoreModal);
+        }
+        if (el.keyInForm) {
+            el.keyInForm.addEventListener('submit', handleKeyInScoreSubmit);
+        }
+        if (el.keyInModalOverlay) {
+            el.keyInModalOverlay.addEventListener('click', (e) => {
+                if (e.target === el.keyInModalOverlay) closeKeyInScoreModal();
+            });
+        }
+        if (el.keyInTeamRunda) {
+            el.keyInTeamRunda.addEventListener('click', () => {
+                activeKeyInTeam = 'runda';
+                updateKeyInTeamButtons();
+                populateKeyInPlayerSelect();
+            });
+        }
+        if (el.keyInTeamMako) {
+            el.keyInTeamMako.addEventListener('click', () => {
+                activeKeyInTeam = 'makongeni';
+                updateKeyInTeamButtons();
+                populateKeyInPlayerSelect();
             });
         }
     }
@@ -150,16 +185,22 @@
         if (isSetup) {
             const canStart = d.can_start;
             const remaining = d.remaining_to_pick;
-            const btnText = canStart ? '⚽ Start Match' : `Start Match (${remaining} players still to pick)`;
+            const btnText = canStart ? '⚽ Start Match' : `Start Match (${remaining} still to pick)`;
             actionButtonsHtml = `
-                <button type="button" id="btnAdminStartMatch" class="btn btn-primary" ${canStart ? '' : 'disabled'} style="font-size:1rem;padding:0.75rem 1.5rem;">
+                <button type="button" id="btnAdminStartMatch" class="btn btn-primary" style="font-size:1rem;padding:0.75rem 1.5rem;">
                     ${btnText}
+                </button>
+                <button type="button" class="btn btn-outline btn-open-keyin-score" style="font-size:1rem;padding:0.75rem 1.25rem;border-color:var(--grass-light);color:var(--grass-light);font-weight:700;">
+                    ⚽ + Key in Score / Record Goal
                 </button>
             `;
         } else if (isLive) {
             actionButtonsHtml = `
                 <button type="button" id="btnAdminEndMatch" class="btn btn-danger" style="font-size:1rem;padding:0.75rem 1.5rem;background:#ef4444;border-color:#ef4444;">
                     🏁 End Match (Full Time)
+                </button>
+                <button type="button" class="btn btn-primary btn-open-keyin-score" style="font-size:1rem;padding:0.75rem 1.25rem;font-weight:700;">
+                    ⚽ + Key in Score / Record Goal
                 </button>
             `;
         } else if (isFinished) {
@@ -169,6 +210,9 @@
                 </button>
                 <button type="button" id="btnAdminResetMatch" class="btn btn-warning" style="padding:0.75rem 1.25rem;">
                     🔄 Start New Match (Reset Scoreboard)
+                </button>
+                <button type="button" class="btn btn-outline btn-open-keyin-score" style="padding:0.75rem 1.25rem;">
+                    ⚽ Key in Goal
                 </button>
             `;
         }
@@ -197,7 +241,9 @@
                     <div class="admin-card" style="border-top: 4px solid var(--runda-primary);">
                         <div class="admin-card-header" style="margin-bottom:0.75rem;">
                             <h4 style="margin:0;font-size:1.1rem;color:#34d399;">🟢 ${escapeHtml(runda.name)}</h4>
-                            <span style="font-size:0.8rem;color:var(--text-dim);">${isLive ? 'Tap player to record goal' : 'Squad list'}</span>
+                            <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="runda" style="border-color:#10b981;color:#34d399;font-weight:700;">
+                                ⚽ + Record Goal
+                            </button>
                         </div>
                         <div style="display:flex;flex-direction:column;gap:0.5rem;">
                             ${renderPlayerTapButtons(rundaMembers, runda, isLive, playerGoalsMap)}
@@ -208,7 +254,9 @@
                     <div class="admin-card" style="border-top: 4px solid var(--mako-primary);">
                         <div class="admin-card-header" style="margin-bottom:0.75rem;">
                             <h4 style="margin:0;font-size:1.1rem;color:#60a5fa;">🔵 ${escapeHtml(mako.name)}</h4>
-                            <span style="font-size:0.8rem;color:var(--text-dim);">${isLive ? 'Tap player to record goal' : 'Squad list'}</span>
+                            <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="makongeni" style="border-color:#3b82f6;color:#60a5fa;font-weight:700;">
+                                ⚽ + Record Goal
+                            </button>
                         </div>
                         <div style="display:flex;flex-direction:column;gap:0.5rem;">
                             ${renderPlayerTapButtons(makoMembers, mako, isLive, playerGoalsMap)}
@@ -241,7 +289,18 @@
                 </tr>
             `).join('');
         } else {
-            goalLogRowsHtml = `<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:1.5rem;">No goals recorded yet.</td></tr>`;
+            goalLogRowsHtml = `
+                <tr>
+                    <td colspan="4" style="text-align:center;padding:2.5rem 1rem;">
+                        <div style="font-size:2.5rem;margin-bottom:0.75rem;">⚽</div>
+                        <p style="color:var(--text-primary);font-weight:700;font-size:1.05rem;margin-bottom:0.4rem;">No goals recorded yet</p>
+                        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1.25rem;">Key in the match score or tap any player from the squads above.</p>
+                        <button type="button" class="btn btn-primary btn-open-keyin-score" style="font-weight:800;padding:0.7rem 1.5rem;font-size:0.95rem;margin:0 auto;display:inline-flex;align-items:center;gap:0.5rem;">
+                            ⚽ Key in Score / Record Goal Now
+                        </button>
+                    </td>
+                </tr>
+            `;
         }
 
         el.container.innerHTML = `
@@ -261,6 +320,9 @@
                     <div class="team-score-side">
                         <div class="team-score-crest">🟢</div>
                         <div class="team-score-name name-runda">Runda FC</div>
+                        <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="runda" style="margin-top:0.5rem;font-size:0.75rem;padding:0.25rem 0.6rem;border-color:#10b981;color:#34d399;">
+                            + Goal (Runda)
+                        </button>
                     </div>
 
                     <div class="scoreboard-center">
@@ -274,6 +336,9 @@
                     <div class="team-score-side">
                         <div class="team-score-crest">🔵</div>
                         <div class="team-score-name name-mako">Makongeni FC</div>
+                        <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="makongeni" style="margin-top:0.5rem;font-size:0.75rem;padding:0.25rem 0.6rem;border-color:#3b82f6;color:#60a5fa;">
+                            + Goal (Mako)
+                        </button>
                     </div>
                 </div>
 
@@ -288,17 +353,40 @@
 
             <!-- Bottom: Goal Log & Undo Controls -->
             <div class="admin-card" style="margin-bottom:1.5rem;">
-                <div class="admin-card-header">
+                <div class="admin-card-header" style="flex-wrap:wrap;gap:0.75rem;">
                     <div>
                         <h4 style="margin:0;font-size:1.05rem;">📋 Match Goal Log (${d.goals ? d.goals.length : 0})</h4>
                         <span style="font-size:0.75rem;color:var(--text-dim);">Live goal chronology</span>
                     </div>
-                    ${d.goals && d.goals.length > 0 ? `
-                        <button type="button" id="btnAdminUndoGoal" class="btn btn-outline btn-sm" style="border-color:#f59e0b;color:#fbbf24;">
-                            ↺ Undo Last Goal
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                        <button type="button" class="btn btn-primary btn-sm btn-open-keyin-score" style="font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;">
+                            ⚽ + Key in Score / Goal
                         </button>
-                    ` : ''}
+                        ${d.goals && d.goals.length > 0 ? `
+                            <button type="button" id="btnAdminUndoGoal" class="btn btn-outline btn-sm" style="border-color:#f59e0b;color:#fbbf24;">
+                                ↺ Undo Last Goal
+                            </button>
+                        ` : ''}
+                    </div>
                 </div>
+
+                <div style="overflow-x:auto;">
+                    <table class="goal-log-table">
+                        <thead>
+                            <tr>
+                                <th>Min</th>
+                                <th>Player</th>
+                                <th>Credited To</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${goalLogRowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
 
                 <div style="overflow-x:auto;">
                     <table class="goal-log-table">
@@ -330,12 +418,15 @@
             const goals = goalCounts[p.id] || 0;
             const goalBadge = goals > 0 ? `<span class="player-goal-counter">⚽ x${goals}</span>` : '';
             return `
-                <button type="button" class="tap-player-btn" data-player-id="${p.id}" data-player-name="${escapeHtml(p.name)}" data-team-id="${team.id}" data-team-name="${escapeHtml(team.name)}" ${isLive ? '' : 'disabled'}>
+                <button type="button" class="tap-player-btn" data-player-id="${p.id}" data-player-name="${escapeHtml(p.name)}" data-team-id="${team.id}" data-team-name="${escapeHtml(team.name)}" title="Record Goal for ${escapeHtml(p.name)}">
                     <div style="display:flex;align-items:center;gap:0.5rem;">
                         <span style="color:var(--text-dim);font-size:0.75rem;">#${p.id}</span>
                         <span>${escapeHtml(p.name)}</span>
                     </div>
-                    ${goalBadge}
+                    <div style="display:flex;align-items:center;gap:0.4rem;">
+                        ${goalBadge}
+                        <span style="color:var(--grass-light);font-size:0.8rem;opacity:0.85;">⚽ +</span>
+                    </div>
                 </button>
             `;
         }).join('');
@@ -353,9 +444,23 @@
     function bindDynamicButtons() {
         // Start Match
         const startBtn = document.getElementById('btnAdminStartMatch');
-        if (startBtn && !startBtn.disabled) {
+        if (startBtn) {
             startBtn.addEventListener('click', handleStartMatchClick);
         }
+
+        // Open Key In Score / Goal Modals
+        const openKeyInButtons = el.container.querySelectorAll('.btn-open-keyin-score');
+        openKeyInButtons.forEach(btn => {
+            btn.addEventListener('click', () => openKeyInScoreModal('runda'));
+        });
+
+        const quickKeyInButtons = el.container.querySelectorAll('.btn-quick-keyin');
+        quickKeyInButtons.forEach(btn => {
+            btn.addEventListener('click', function () {
+                const team = this.getAttribute('data-team') || 'runda';
+                openKeyInScoreModal(team);
+            });
+        });
 
         // End Match
         const endBtn = document.getElementById('btnAdminEndMatch');
@@ -376,7 +481,7 @@
         }
 
         // Tap Player to Record Goal
-        const playerButtons = el.container.querySelectorAll('.tap-player-btn:not(:disabled)');
+        const playerButtons = el.container.querySelectorAll('.tap-player-btn');
         playerButtons.forEach(btn => {
             btn.addEventListener('click', function () {
                 if (state.isDebouncing) return;
@@ -526,14 +631,29 @@
 
     // Start Match
     async function handleStartMatchClick() {
-        if (!confirm('Start match now?\n\nThis will start the live timer and automatically lock squad picking.')) {
-            return;
+        const d = state.data;
+        if (!d) return;
+
+        let force = false;
+        if (!d.can_start) {
+            const confirmed = confirm(
+                `⚽ Early Kick Off / Start Match\n\n` +
+                `${d.remaining_to_pick} player(s) have not picked their teams yet on WhatsApp (${d.picked_players_count}/18 picked).\n\n` +
+                `Do you want to start the match now anyway with the currently picked squads?`
+            );
+            if (!confirmed) return;
+            force = true;
+        } else {
+            if (!confirm('Start match now?\n\nThis will start the live timer and automatically lock squad picking.')) {
+                return;
+            }
         }
 
         try {
             const res = await fetch('../api/match_state.php?action=start_match', {
                 method: 'POST',
-                headers: { 'Accept': 'application/json' }
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ force: force })
             });
             const data = await res.json();
 
@@ -546,6 +666,149 @@
             }
         } catch {
             notifyToast('Network error starting match', 'error');
+        }
+    }
+
+    // Modal: Key In Score / Goal
+    let activeKeyInTeam = 'runda';
+
+    function openKeyInScoreModal(defaultTeam = 'runda') {
+        activeKeyInTeam = defaultTeam;
+        updateKeyInTeamButtons();
+        populateKeyInPlayerSelect();
+
+        // Calculate default minute
+        let defaultMinute = 1;
+        let defaultSecond = 0;
+        if (state.data && state.data.state === 'live' && state.data.started_at) {
+            const nowServerMs = Date.now() + state.clockOffsetMs;
+            const startedAtMs = new Date(state.data.started_at).getTime();
+            const elapsedSec = Math.max(0, Math.floor((nowServerMs - startedAtMs) / 1000));
+            defaultMinute = Math.floor(elapsedSec / 60);
+            defaultSecond = elapsedSec % 60;
+        } else if (state.data && state.data.state === 'finished') {
+            defaultMinute = 60;
+        }
+
+        if (el.keyInMinuteInput) el.keyInMinuteInput.value = defaultMinute;
+        if (el.keyInSecondInput) el.keyInSecondInput.value = defaultSecond;
+
+        if (el.keyInModalOverlay) el.keyInModalOverlay.classList.add('active');
+    }
+
+    function closeKeyInScoreModal() {
+        if (el.keyInModalOverlay) el.keyInModalOverlay.classList.remove('active');
+    }
+
+    function updateKeyInTeamButtons() {
+        if (el.keyInTeamRunda && el.keyInTeamMako) {
+            if (activeKeyInTeam === 'runda') {
+                el.keyInTeamRunda.classList.add('active');
+                el.keyInTeamRunda.style.borderColor = '#10b981';
+                el.keyInTeamRunda.style.color = '#34d399';
+                el.keyInTeamMako.classList.remove('active');
+                el.keyInTeamMako.style.borderColor = 'var(--border-pitch)';
+                el.keyInTeamMako.style.color = 'var(--text-secondary)';
+            } else {
+                el.keyInTeamMako.classList.add('active');
+                el.keyInTeamMako.style.borderColor = '#3b82f6';
+                el.keyInTeamMako.style.color = '#60a5fa';
+                el.keyInTeamRunda.classList.remove('active');
+                el.keyInTeamRunda.style.borderColor = 'var(--border-pitch)';
+                el.keyInTeamRunda.style.color = 'var(--text-secondary)';
+            }
+        }
+    }
+
+    function populateKeyInPlayerSelect() {
+        if (!el.keyInPlayerSelect) return;
+        el.keyInPlayerSelect.innerHTML = '';
+
+        const teams = state.data?.teams || [];
+        const targetTeam = teams.find(t => t.name.toLowerCase().includes(activeKeyInTeam)) || (activeKeyInTeam === 'runda' ? teams[0] : teams[1]);
+        const targetTeamId = targetTeam ? targetTeam.id : (activeKeyInTeam === 'runda' ? 1 : 2);
+
+        const teamPlayers = getTeamMembers(targetTeamId);
+
+        if (teamPlayers.length > 0) {
+            const teamOptGroup = document.createElement('optgroup');
+            teamOptGroup.label = `${targetTeam?.name || 'Selected Team'} Squad`;
+            teamPlayers.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `${p.name} (Team Member)`;
+                teamOptGroup.appendChild(opt);
+            });
+            el.keyInPlayerSelect.appendChild(teamOptGroup);
+        }
+
+        // Add other registered or unassigned players as alternative options
+        if (window.turfAdminData && window.turfAdminData.players) {
+            const otherPlayers = window.turfAdminData.players.filter(p => !teamPlayers.some(tp => tp.id === p.id));
+            if (otherPlayers.length > 0) {
+                const otherGroup = document.createElement('optgroup');
+                otherGroup.label = 'Other Players / Unassigned';
+                otherPlayers.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = `${p.name} (${p.team_name || 'Unassigned'})`;
+                    otherGroup.appendChild(opt);
+                });
+                el.keyInPlayerSelect.appendChild(otherGroup);
+            }
+        }
+
+        if (el.keyInPlayerSelect.options.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'No players found';
+            el.keyInPlayerSelect.appendChild(opt);
+        }
+    }
+
+    async function handleKeyInScoreSubmit(e) {
+        e.preventDefault();
+        const playerId = parseInt(el.keyInPlayerSelect.value, 10);
+        if (!playerId || isNaN(playerId)) {
+            alert('Please select a player.');
+            return;
+        }
+
+        const teams = state.data?.teams || [];
+        const targetTeam = teams.find(t => t.name.toLowerCase().includes(activeKeyInTeam)) || (activeKeyInTeam === 'runda' ? teams[0] : teams[1]);
+        const targetTeamId = targetTeam ? targetTeam.id : (activeKeyInTeam === 'runda' ? 1 : 2);
+
+        const goalTypeRadio = document.querySelector('input[name="keyInGoalType"]:checked');
+        const isOwnGoal = (goalTypeRadio && goalTypeRadio.value === 'og');
+
+        const minute = parseInt(el.keyInMinuteInput.value, 10);
+        const second = parseInt(el.keyInSecondInput.value, 10);
+
+        closeKeyInScoreModal();
+
+        try {
+            const res = await fetch('../api/match_state.php?action=record_goal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    player_id: playerId,
+                    team_id: targetTeamId,
+                    is_own_goal: isOwnGoal,
+                    match_minute: isNaN(minute) ? 0 : minute,
+                    match_second: isNaN(second) ? 0 : second
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                state.data = data;
+                renderAdminMatch();
+                notifyToast(data.message || 'Goal recorded successfully!', 'success');
+            } else {
+                notifyToast(data.error || 'Failed to record goal', 'error');
+            }
+        } catch {
+            notifyToast('Network error recording goal', 'error');
         }
     }
 
