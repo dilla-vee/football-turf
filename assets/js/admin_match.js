@@ -182,37 +182,43 @@
 
         // Action Buttons Row
         let actionButtonsHtml = '';
+        const ballIcon = window.TurfIcons ? TurfIcons.icon('ball', { width:16, height:16 }) : '';
+        const whistleIcon = window.TurfIcons ? TurfIcons.icon('whistle', { width:16, height:16 }) : '';
+        const plusIcon = window.TurfIcons ? TurfIcons.icon('plus', { width:14, height:14 }) : '+';
+        const shareIcon = window.TurfIcons ? TurfIcons.icon('share', { width:15, height:15 }) : '';
+        const refreshIcon = window.TurfIcons ? TurfIcons.icon('refresh', { width:15, height:15 }) : '';
+
         if (isSetup) {
             const canStart = d.can_start;
             const remaining = d.remaining_to_pick;
-            const btnText = canStart ? '⚽ Start Match' : `Start Match (${remaining} still to pick)`;
+            const btnText = canStart ? `${ballIcon} Start Match` : `Start Match (${remaining} still to pick)`;
             actionButtonsHtml = `
-                <button type="button" id="btnAdminStartMatch" class="btn btn-primary" style="font-size:1rem;padding:0.75rem 1.5rem;">
+                <button type="button" id="btnAdminStartMatch" class="btn btn-primary" style="font-size:1rem;padding:0.75rem 1.5rem;display:inline-flex;align-items:center;gap:0.45rem;">
                     ${btnText}
                 </button>
-                <button type="button" class="btn btn-outline btn-open-keyin-score" style="font-size:1rem;padding:0.75rem 1.25rem;border-color:var(--grass-light);color:var(--grass-light);font-weight:700;">
-                    ⚽ + Key in Score / Record Goal
+                <button type="button" class="btn btn-outline btn-open-keyin-score" style="font-size:1rem;padding:0.75rem 1.25rem;border-color:var(--grass-light);color:var(--grass-light);font-weight:700;display:inline-flex;align-items:center;gap:0.45rem;">
+                    ${plusIcon} Key in Score / Record Goal
                 </button>
             `;
         } else if (isLive) {
             actionButtonsHtml = `
-                <button type="button" id="btnAdminEndMatch" class="btn btn-danger" style="font-size:1rem;padding:0.75rem 1.5rem;background:#ef4444;border-color:#ef4444;">
-                    🏁 End Match (Full Time)
+                <button type="button" id="btnAdminEndMatch" class="btn btn-danger" style="font-size:1rem;padding:0.75rem 1.5rem;background:#ef4444;border-color:#ef4444;display:inline-flex;align-items:center;gap:0.45rem;">
+                    ${whistleIcon} End Match (Full Time)
                 </button>
-                <button type="button" class="btn btn-primary btn-open-keyin-score" style="font-size:1rem;padding:0.75rem 1.25rem;font-weight:700;">
-                    ⚽ + Key in Score / Record Goal
+                <button type="button" class="btn btn-primary btn-open-keyin-score" style="font-size:1rem;padding:0.75rem 1.25rem;font-weight:700;display:inline-flex;align-items:center;gap:0.45rem;">
+                    ${plusIcon} Key in Score / Record Goal
                 </button>
             `;
         } else if (isFinished) {
             actionButtonsHtml = `
-                <button type="button" id="btnAdminCopyWhatsApp" class="btn btn-whatsapp" style="padding:0.75rem 1.25rem;">
-                    📋 Copy Result for WhatsApp
+                <button type="button" id="btnAdminCopyWhatsApp" class="btn btn-whatsapp" style="padding:0.75rem 1.25rem;display:inline-flex;align-items:center;gap:0.45rem;">
+                    ${shareIcon} Copy Result for WhatsApp
                 </button>
-                <button type="button" id="btnAdminResetMatch" class="btn btn-warning" style="padding:0.75rem 1.25rem;">
-                    🔄 Start New Match (Reset Scoreboard)
+                <button type="button" id="btnAdminResetMatch" class="btn btn-warning" style="padding:0.75rem 1.25rem;display:inline-flex;align-items:center;gap:0.45rem;">
+                    ${refreshIcon} Start New Match (Reset Scoreboard)
                 </button>
-                <button type="button" class="btn btn-outline btn-open-keyin-score" style="padding:0.75rem 1.25rem;">
-                    ⚽ Key in Goal
+                <button type="button" class="btn btn-outline btn-open-keyin-score" style="padding:0.75rem 1.25rem;display:inline-flex;align-items:center;gap:0.45rem;">
+                    ${plusIcon} Key in Goal
                 </button>
             `;
         }
@@ -235,14 +241,17 @@
             const rundaMembers = getTeamMembers(runda.id);
             const makoMembers = getTeamMembers(mako.id);
 
+            const rundaBadge = window.TurfIcons ? TurfIcons.rundaBadge(22) : '';
+            const makoBadge = window.TurfIcons ? TurfIcons.makoBadge(22) : '';
+
             rostersHtml = `
                 <div class="tap-roster-grid">
                     <!-- Runda FC Tap Roster -->
-                    <div class="admin-card" style="border-top: 4px solid var(--runda-primary);">
+                    <div class="admin-card" style="border-top: 3px solid var(--runda-primary);">
                         <div class="admin-card-header" style="margin-bottom:0.75rem;">
-                            <h4 style="margin:0;font-size:1.1rem;color:#34d399;">🟢 ${escapeHtml(runda.name)}</h4>
-                            <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="runda" style="border-color:#10b981;color:#34d399;font-weight:700;">
-                                ⚽ + Record Goal
+                            <h4 style="margin:0;font-size:1.1rem;color:#34d399;display:flex;align-items:center;gap:0.4rem;">${rundaBadge} ${escapeHtml(runda.name)}</h4>
+                            <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="runda" style="border-color:#10b981;color:#34d399;font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;">
+                                ${plusIcon} Record Goal
                             </button>
                         </div>
                         <div style="display:flex;flex-direction:column;gap:0.5rem;">
@@ -251,11 +260,11 @@
                     </div>
 
                     <!-- Makongeni FC Tap Roster -->
-                    <div class="admin-card" style="border-top: 4px solid var(--mako-primary);">
+                    <div class="admin-card" style="border-top: 3px solid var(--mako-primary);">
                         <div class="admin-card-header" style="margin-bottom:0.75rem;">
-                            <h4 style="margin:0;font-size:1.1rem;color:#60a5fa;">🔵 ${escapeHtml(mako.name)}</h4>
-                            <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="makongeni" style="border-color:#3b82f6;color:#60a5fa;font-weight:700;">
-                                ⚽ + Record Goal
+                            <h4 style="margin:0;font-size:1.1rem;color:#60a5fa;display:flex;align-items:center;gap:0.4rem;">${makoBadge} ${escapeHtml(mako.name)}</h4>
+                            <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="makongeni" style="border-color:#3b82f6;color:#60a5fa;font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;">
+                                ${plusIcon} Record Goal
                             </button>
                         </div>
                         <div style="display:flex;flex-direction:column;gap:0.5rem;">
@@ -268,47 +277,55 @@
 
         // Bottom Section: Chronological Goal Log
         let goalLogRowsHtml = '';
+        const editIcon = window.TurfIcons ? TurfIcons.icon('edit', { width:14, height:14 }) : 'Edit';
+        const trashIcon = window.TurfIcons ? TurfIcons.icon('trash', { width:14, height:14 }) : 'Del';
+
         if (d.goals && d.goals.length > 0) {
             const reversedGoals = [...d.goals].reverse();
             goalLogRowsHtml = reversedGoals.map(g => `
                 <tr>
-                    <td style="font-family:monospace;font-weight:700;color:#fbbf24;">${g.minute_label}</td>
+                    <td style="font-family:'JetBrains Mono', monospace;font-weight:700;color:#fbbf24;">${g.minute_label}</td>
                     <td>
                         <strong style="color:var(--text-primary);">${escapeHtml(g.player_name)}</strong>
                         ${g.is_own_goal ? '<span class="goal-feed-badge-og">OG</span>' : ''}
                     </td>
                     <td style="color:var(--text-secondary);">${escapeHtml(g.credited_team_name)}</td>
                     <td style="text-align:right;">
-                        <button type="button" class="btn btn-outline btn-sm btn-edit-goal" data-id="${g.id}" data-minute="${g.match_minute}" data-second="${g.match_second}" data-name="${escapeHtml(g.player_name)}" title="Edit Time">
-                            ✏️
+                        <button type="button" class="btn btn-outline btn-sm btn-edit-goal" data-id="${g.id}" data-minute="${g.match_minute}" data-second="${g.match_second}" data-name="${escapeHtml(g.player_name)}" title="Edit Time" style="padding:0.3rem 0.5rem;">
+                            ${editIcon}
                         </button>
-                        <button type="button" class="btn btn-outline btn-sm btn-delete-goal" data-id="${g.id}" data-name="${escapeHtml(g.player_name)}" title="Delete Goal" style="border-color:#ef4444;color:#f87171;">
-                            🗑️
+                        <button type="button" class="btn btn-outline btn-sm btn-delete-goal" data-id="${g.id}" data-name="${escapeHtml(g.player_name)}" title="Delete Goal" style="border-color:#ef4444;color:#f87171;padding:0.3rem 0.5rem;">
+                            ${trashIcon}
                         </button>
                     </td>
                 </tr>
             `).join('');
         } else {
+            const emptyBallSvg = window.TurfIcons ? TurfIcons.icon('ball', { width:32, height:32, class:'text-brand' }) : '';
             goalLogRowsHtml = `
                 <tr>
                     <td colspan="4" style="text-align:center;padding:2.5rem 1rem;">
-                        <div style="font-size:2.5rem;margin-bottom:0.75rem;">⚽</div>
+                        <div style="margin-bottom:0.75rem;display:flex;justify-content:center;">${emptyBallSvg}</div>
                         <p style="color:var(--text-primary);font-weight:700;font-size:1.05rem;margin-bottom:0.4rem;">No goals recorded yet</p>
                         <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1.25rem;">Key in the match score or tap any player from the squads above.</p>
                         <button type="button" class="btn btn-primary btn-open-keyin-score" style="font-weight:800;padding:0.7rem 1.5rem;font-size:0.95rem;margin:0 auto;display:inline-flex;align-items:center;gap:0.5rem;">
-                            ⚽ Key in Score / Record Goal Now
+                            ${plusIcon} Key in Score / Record Goal Now
                         </button>
                     </td>
                 </tr>
             `;
         }
 
+        const clockSvg = window.TurfIcons ? TurfIcons.icon('clock', { width:16, height:16 }) : '';
+        const rundaCrestLarge = window.TurfIcons ? TurfIcons.rundaBadge(44) : 'RFC';
+        const makoCrestLarge = window.TurfIcons ? TurfIcons.makoBadge(44) : 'MFC';
+
         el.container.innerHTML = `
             <!-- Top Scoreboard Card -->
             <div class="scoreboard-card" style="margin-bottom:1.25rem;">
                 <div class="scoreboard-top-bar">
                     <div class="match-clock-container">
-                        <span style="font-size:1.2rem;">⏱️</span>
+                        <span style="display:inline-flex;align-items:center;">${clockSvg}</span>
                         <span class="match-clock" id="adminMatchClock">${d.elapsed_formatted || '00:00'}</span>
                     </div>
                     <div class="match-status-chip ${statusClass}">
@@ -318,10 +335,10 @@
 
                 <div class="scoreboard-teams-row">
                     <div class="team-score-side">
-                        <div class="team-score-crest">🟢</div>
+                        <div class="team-score-crest">${rundaCrestLarge}</div>
                         <div class="team-score-name name-runda">Runda FC</div>
                         <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="runda" style="margin-top:0.5rem;font-size:0.75rem;padding:0.25rem 0.6rem;border-color:#10b981;color:#34d399;">
-                            + Goal (Runda)
+                            + Goal (RFC)
                         </button>
                     </div>
 
@@ -334,10 +351,10 @@
                     </div>
 
                     <div class="team-score-side">
-                        <div class="team-score-crest">🔵</div>
+                        <div class="team-score-crest">${makoCrestLarge}</div>
                         <div class="team-score-name name-mako">Makongeni FC</div>
                         <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="makongeni" style="margin-top:0.5rem;font-size:0.75rem;padding:0.25rem 0.6rem;border-color:#3b82f6;color:#60a5fa;">
-                            + Goal (Mako)
+                            + Goal (MFC)
                         </button>
                     </div>
                 </div>
@@ -355,16 +372,18 @@
             <div class="admin-card" style="margin-bottom:1.5rem;">
                 <div class="admin-card-header" style="flex-wrap:wrap;gap:0.75rem;">
                     <div>
-                        <h4 style="margin:0;font-size:1.05rem;">📋 Match Goal Log (${d.goals ? d.goals.length : 0})</h4>
+                        <h4 style="margin:0;font-size:1.05rem;display:flex;align-items:center;gap:0.4rem;">
+                            ${clockSvg} Match Goal Log (${d.goals ? d.goals.length : 0})
+                        </h4>
                         <span style="font-size:0.75rem;color:var(--text-dim);">Live goal chronology</span>
                     </div>
                     <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
                         <button type="button" class="btn btn-primary btn-sm btn-open-keyin-score" style="font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;">
-                            ⚽ + Key in Score / Goal
+                            ${plusIcon} Key in Score / Goal
                         </button>
                         ${d.goals && d.goals.length > 0 ? `
-                            <button type="button" id="btnAdminUndoGoal" class="btn btn-outline btn-sm" style="border-color:#f59e0b;color:#fbbf24;">
-                                ↺ Undo Last Goal
+                            <button type="button" id="btnAdminUndoGoal" class="btn btn-outline btn-sm" style="border-color:#f59e0b;color:#fbbf24;display:inline-flex;align-items:center;gap:0.35rem;">
+                                ${refreshIcon} Undo Last Goal
                             </button>
                         ` : ''}
                     </div>
@@ -414,9 +433,12 @@
             return `<div class="roster-empty" style="padding:1rem;">No players registered to this team yet.</div>`;
         }
 
+        const ballSvg = window.TurfIcons ? TurfIcons.icon('ball', { width:12, height:12 }) : '';
+        const plusSvg = window.TurfIcons ? TurfIcons.icon('plus', { width:12, height:12 }) : '+';
+
         return members.map(p => {
             const goals = goalCounts[p.id] || 0;
-            const goalBadge = goals > 0 ? `<span class="player-goal-counter">⚽ x${goals}</span>` : '';
+            const goalBadge = goals > 0 ? `<span class="player-goal-counter" style="display:inline-flex;align-items:center;gap:3px;">${ballSvg} x${goals}</span>` : '';
             return `
                 <button type="button" class="tap-player-btn" data-player-id="${p.id}" data-player-name="${escapeHtml(p.name)}" data-team-id="${team.id}" data-team-name="${escapeHtml(team.name)}" title="Record Goal for ${escapeHtml(p.name)}">
                     <div style="display:flex;align-items:center;gap:0.5rem;">
@@ -425,7 +447,7 @@
                     </div>
                     <div style="display:flex;align-items:center;gap:0.4rem;">
                         ${goalBadge}
-                        <span style="color:var(--grass-light);font-size:0.8rem;opacity:0.85;">⚽ +</span>
+                        <span style="color:var(--grass-light);font-size:0.8rem;opacity:0.85;display:inline-flex;align-items:center;">${plusSvg}</span>
                     </div>
                 </button>
             `;
@@ -529,7 +551,9 @@
         state.activePlayerForGoal = { id: playerId, name: playerName, teamId: teamId, teamName: teamName };
         if (el.modalPlayerName) el.modalPlayerName.textContent = playerName;
         if (el.modalTeamName) el.modalTeamName.textContent = teamName;
-        if (el.btnNormalGoal) el.btnNormalGoal.textContent = `⚽ Goal (+1 for ${teamName})`;
+        const ballIcon = window.TurfIcons ? TurfIcons.icon('ball', { width: 16, height: 16 }) : '';
+        const alertIcon = window.TurfIcons ? TurfIcons.icon('alert', { width: 16, height: 16 }) : '';
+        if (el.btnNormalGoal) el.btnNormalGoal.innerHTML = `<span style="display:inline-flex;align-items:center;gap:0.4rem;">${ballIcon} Goal (+1 for ${teamName})</span>`;
         
         // Find opposite team name
         let oppName = 'Opposing Team';
@@ -537,7 +561,7 @@
             const opp = state.data.teams.find(t => t.id !== teamId);
             if (opp) oppName = opp.name;
         }
-        if (el.btnOwnGoal) el.btnOwnGoal.textContent = `🔴 Own Goal (OG) (+1 for ${oppName})`;
+        if (el.btnOwnGoal) el.btnOwnGoal.innerHTML = `<span style="display:inline-flex;align-items:center;gap:0.4rem;">${alertIcon} Own Goal (OG) (+1 for ${oppName})</span>`;
 
         if (el.modalOverlay) el.modalOverlay.classList.add('active');
     }
@@ -637,7 +661,7 @@
         let force = false;
         if (!d.can_start) {
             const confirmed = confirm(
-                `⚽ Early Kick Off / Start Match\n\n` +
+                `Early Kick Off / Start Match\n\n` +
                 `${d.remaining_to_pick} player(s) have not picked their teams yet on WhatsApp (${d.picked_players_count}/18 picked).\n\n` +
                 `Do you want to start the match now anyway with the currently picked squads?`
             );

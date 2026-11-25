@@ -164,7 +164,9 @@
         const html = state.teams.map(team => {
             const isRunda = team.name.toLowerCase().includes('runda');
             const teamClass = isRunda ? 'team-runda' : 'team-makongeni';
-            const crestIcon = isRunda ? '🟢' : '🔵';
+            const crestIcon = window.TurfIcons 
+                ? (isRunda ? TurfIcons.rundaBadge(40) : TurfIcons.makoBadge(40))
+                : `<span class="club-pill-sm ${isRunda ? 'runda' : 'mako'}">${isRunda ? 'RFC' : 'MFC'}</span>`;
             const isViewerTeam = (state.player.picked_team_id === team.id);
             const isOnlyOption = (!state.player.has_picked && state.autoAssignedTeamId === team.id && team.is_selectable);
 
@@ -189,7 +191,8 @@
             let buttonHtml = '';
             if (state.player.has_picked) {
                 if (isViewerTeam) {
-                    buttonHtml = `<button class="pick-btn" disabled style="background:#059669;color:#fff;">✓ You are on this team</button>`;
+                    const checkIcon = window.TurfIcons ? TurfIcons.icon('check', { width: 16, height: 16 }) : '✓';
+                    buttonHtml = `<button class="pick-btn" disabled style="background:#059669;color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;">${checkIcon} You are on this team</button>`;
                 } else {
                     buttonHtml = `<button class="pick-btn" disabled>Locked</button>`;
                 }
@@ -288,13 +291,13 @@
 
         let rivalNotice = '';
         if (state.player && state.player.rival_name) {
-            rivalNotice = `<br><span style="color:#6ee7b7;font-size:0.875rem;">⚔️ You will be facing your head-to-head opponent <strong>${escapeHtml(state.player.rival_name)}</strong> on the opposite team!</span><br>`;
+            rivalNotice = `<br><span style="display:inline-flex;align-items:center;gap:0.35rem;color:#34d399;font-weight:600;font-size:0.875rem;">${window.TurfIcons ? TurfIcons.icon('users', { width:15, height:15 }) : ''} Facing opponent <strong>${escapeHtml(state.player.rival_name)}</strong> on the opposite team!</span><br>`;
         }
 
         elements.modalTitle.textContent = `Pick ${teamName}?`;
         elements.modalBody.innerHTML = `
             Are you sure you want to join <strong>${escapeHtml(teamName)}</strong>?<br>${rivalNotice}<br>
-            <span style="color:#fbbf24;font-size:0.875rem;">⚠️ This choice is permanent and cannot be changed once submitted.</span>
+            <span style="display:inline-flex;align-items:center;gap:0.35rem;color:#fbbf24;font-size:0.85rem;">${window.TurfIcons ? TurfIcons.icon('alert', { width:15, height:15 }) : ''} This choice is permanent and cannot be changed once submitted.</span>
         `;
         elements.modalBtnConfirm.textContent = `Confirm ${teamName}`;
         elements.modalBtnConfirm.disabled = false;
@@ -335,7 +338,7 @@
 
             if (result.success) {
                 closeModal();
-                showToast(`⚽ Joined ${state.pendingTeamPick.name}! Choice locked.`, 'success');
+                showToast(`Joined ${state.pendingTeamPick.name}! Choice locked.`, 'success');
                 // Refresh status immediately
                 await fetchStatus(false);
             } else {
@@ -360,8 +363,15 @@
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
 
-        const icon = type === 'success' ? '✅' : (type === 'error' ? '⚠️' : 'ℹ️');
-        toast.innerHTML = `<span>${icon}</span> <span>${escapeHtml(message)}</span>`;
+        let icon = '';
+        if (window.TurfIcons) {
+            if (type === 'success') icon = TurfIcons.icon('check', { width: 16, height: 16 });
+            else if (type === 'error') icon = TurfIcons.icon('alert', { width: 16, height: 16 });
+            else icon = TurfIcons.icon('ball', { width: 16, height: 16 });
+        } else {
+            icon = type === 'success' ? '✓' : '!';
+        }
+        toast.innerHTML = `<span style="display:inline-flex;align-items:center;">${icon}</span> <span>${escapeHtml(message)}</span>`;
 
         elements.toastContainer.appendChild(toast);
 

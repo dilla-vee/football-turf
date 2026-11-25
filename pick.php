@@ -13,20 +13,19 @@ $token = trim($_GET['t'] ?? '');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#06140d">
-    <title>Turf Teams - Pick Your Side</title>
+    <meta name="theme-color" content="#080c14">
+    <title>Turf Teams - Squad Selection</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <script src="assets/js/icons.js"></script>
 </head>
 <body>
-    <div class="pitch-overlay"></div>
-
     <!-- Toast Notification Container -->
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
     <div class="container">
         <!-- App Header -->
         <header class="app-header">
-            <div class="brand-badge">⚽ Saturday Football Match</div>
+            <div class="brand-badge"><span class="badge-dot"></span> MATCHDAY SQUAD SELECTION</div>
             <h1 class="app-title">TURF TEAMS</h1>
             <p class="app-subtitle">Balanced Squads • Fair Competition</p>
         </header>
@@ -39,12 +38,12 @@ $token = trim($_GET['t'] ?? '');
 
         <!-- Friendly Error State (Invalid Token) -->
         <div id="errorView" class="error-screen" style="display:none;">
-            <div class="error-icon">🚫</div>
+            <div class="error-icon" id="errorIconBox"></div>
             <h2 class="error-title" id="errorTitle">Match Pass Invalid</h2>
             <p class="error-desc" id="errorDesc">
                 This personal link is invalid, expired, or was altered. Please check the WhatsApp link sent by the match organizer.
             </p>
-            <a href="index.php" class="btn btn-outline">Back to Home</a>
+            <a href="index.php" class="btn btn-outline" style="margin-top:1rem;">Back to Home</a>
         </div>
 
         <!-- Main Player App View -->
@@ -61,13 +60,13 @@ $token = trim($_GET['t'] ?? '');
 
             <!-- Global Picking Locked Alert -->
             <div class="picking-closed-alert" id="pickingClosedAlert" style="display:none;">
-                <span>🔒</span>
+                <span class="closed-alert-icon" id="closedAlertIcon"></span>
                 <span>Team selection is currently closed by the match organizer.</span>
             </div>
 
             <!-- Locked Confirmation State (Shows when player has already picked) -->
             <section class="locked-status-banner" id="lockedBanner" style="display:none;">
-                <div class="locked-icon">⚽</div>
+                <div class="locked-icon" id="lockedIconBox"></div>
                 <div class="locked-details">
                     <div class="locked-tagline">Squad Locked</div>
                     <div class="locked-team-name" id="lockedTeamName">Team Name</div>
@@ -91,7 +90,7 @@ $token = trim($_GET['t'] ?? '');
     <!-- Confirmation Modal Dialog -->
     <div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-box">
-            <div class="modal-icon">⚽</div>
+            <div class="modal-icon" id="modalIconBox"></div>
             <h3 class="modal-title" id="modalTitle">Confirm Selection</h3>
             <div class="modal-body" id="modalBody">
                 Are you sure you want to lock in your squad?
@@ -106,5 +105,17 @@ $token = trim($_GET['t'] ?? '');
     <!-- Application Scripts -->
     <script src="assets/js/match.js"></script>
     <script src="assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.TurfIcons) {
+                const errBox = document.getElementById('errorIconBox');
+                if (errBox) errBox.innerHTML = TurfIcons.icon('alert', { width: 48, height: 48 });
+                const closedIcon = document.getElementById('closedAlertIcon');
+                if (closedIcon) closedIcon.innerHTML = TurfIcons.icon('lock', { width: 18, height: 18 });
+                const modalBox = document.getElementById('modalIconBox');
+                if (modalBox) modalBox.innerHTML = TurfIcons.icon('shield', { width: 44, height: 44, class: 'text-brand' });
+            }
+        });
+    </script>
 </body>
 </html>

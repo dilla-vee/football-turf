@@ -110,7 +110,7 @@
         if (el.resetAllBtn) {
             el.resetAllBtn.addEventListener('click', () => {
                 openAdminConfirm(
-                    '⚠️ Reset ALL Player Picks?',
+                    'Reset ALL Player Picks?',
                     'This will clear team assignments for all 18 players. Tokens and player profiles will remain intact.',
                     handleResetAllPicks,
                     'Reset Everything',
@@ -300,13 +300,15 @@
         // Lock Status Toggle
         if (el.lockBadge) {
             if (d.picking_locked) {
-                el.lockBadge.textContent = '🔒 CLOSED';
+                const lockIcon = window.TurfIcons ? TurfIcons.icon('lock', { width:12, height:12 }) : '';
+                el.lockBadge.innerHTML = `<span style="display:inline-flex;align-items:center;gap:3px;">${lockIcon} CLOSED</span>`;
                 el.lockBadge.className = 'tier-badge tier-skilled';
                 el.lockBadge.style.background = '#7f1d1d';
                 el.lockBadge.style.color = '#fecaca';
                 el.lockBadge.style.borderColor = '#ef4444';
             } else {
-                el.lockBadge.textContent = '🔓 OPEN';
+                const unlockIcon = window.TurfIcons ? TurfIcons.icon('unlock', { width:12, height:12 }) : '';
+                el.lockBadge.innerHTML = `<span style="display:inline-flex;align-items:center;gap:3px;">${unlockIcon} OPEN</span>`;
                 el.lockBadge.className = 'tier-badge tier-regular';
                 el.lockBadge.style.background = '#064e3b';
                 el.lockBadge.style.color = '#a7f3d0';
@@ -315,8 +317,9 @@
         }
 
         if (el.lockToggleBtn) {
-            el.lockToggleBtn.textContent = d.picking_locked ? '🔓 Unlock Picking' : '🔒 Lock Picking';
-            el.lockToggleBtn.className = d.picking_locked ? 'btn btn-primary' : 'btn btn-warning';
+            const btnLockIcon = window.TurfIcons ? TurfIcons.icon(d.picking_locked ? 'unlock' : 'lock', { width: 14, height: 14 }) : '';
+            el.lockToggleBtn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:0.4rem;">${btnLockIcon} <span>${d.picking_locked ? 'Unlock Picking' : 'Lock Picking'}</span></span>`;
+            el.lockToggleBtn.className = d.picking_locked ? 'btn btn-primary btn-sm' : 'btn btn-warning btn-sm';
         }
 
         // Base URL Input
@@ -327,11 +330,13 @@
         // Render Rival Matchup Conflicts Alert (e.g. Jimmy & Oliver on same team)
         if (el.rivalConflictContainer) {
             if (d.rival_conflicts && d.rival_conflicts.length > 0) {
+                const alertSvg = window.TurfIcons ? TurfIcons.icon('alert', { width: 16, height: 16 }) : '';
+                const refreshSvg = window.TurfIcons ? TurfIcons.icon('refresh', { width: 12, height: 12 }) : '';
                 el.rivalConflictContainer.innerHTML = d.rival_conflicts.map(c => `
                     <div class="conflict-alert" style="background:#451a1a;border:1px solid #ef4444;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem;color:#fecaca;box-shadow:0 4px 15px rgba(239,68,68,0.25);">
                         <div>
                             <div style="font-weight:800;color:#f87171;font-size:0.95rem;display:flex;align-items:center;gap:0.4rem;">
-                                <span>⚠️</span>
+                                <span>${alertSvg}</span>
                                 <span>RIVAL MATCHUP CONFLICT: Both Opponents on Same Team!</span>
                             </div>
                             <p style="margin:0.35rem 0 0 0;font-size:0.85rem;color:#fca5a5;line-height:1.4;">
@@ -339,8 +344,8 @@
                             </p>
                         </div>
                         <button type="button" class="btn btn-warning btn-sm btn-conflict-reset" 
-                            data-id="${c.player2.id}" data-name="${escapeHtml(c.player2.name)}" data-team="${escapeHtml(c.team_name)}">
-                            ↺ Reset ${escapeHtml(c.player2.name)}'s Pick
+                            data-id="${c.player2.id}" data-name="${escapeHtml(c.player2.name)}" data-team="${escapeHtml(c.team_name)}" style="display:inline-flex;align-items:center;gap:0.35rem;">
+                            ${refreshSvg} Reset ${escapeHtml(c.player2.name)}'s Pick
                         </button>
                     </div>
                 `).join('');
@@ -394,18 +399,23 @@
                 const tierClass = p.tier === 'skilled' ? 'tier-skilled' : 'tier-regular';
                 const tierLabel = p.tier === 'skilled' ? 'Skilled' : 'Regular';
 
+                const rivalHtml = p.rival_name 
+                    ? `<span class="rival-badge" style="font-size:0.68rem;background:rgba(239,68,68,0.15);color:#fca5a5;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25);margin-left:4px;display:inline-flex;align-items:center;gap:3px;">${window.TurfIcons ? TurfIcons.icon('users', { width:10, height:10 }) : ''} vs ${escapeHtml(p.rival_name)}</span>` 
+                    : '';
+                const refreshSvg = window.TurfIcons ? TurfIcons.icon('refresh', { width:12, height:12 }) : '';
+
                 return `
                     <div class="player-row">
                         <div class="player-info">
                             <span style="color:var(--text-dim);font-size:0.75rem;min-width:20px;">#${index + 1}</span>
                             <span style="font-weight:600;">${escapeHtml(p.name)}</span>
                             <span class="tier-badge ${tierClass}">${tierLabel}</span>
-                            ${p.rival_name ? `<span class="rival-badge" style="font-size:0.68rem;background:rgba(239,68,68,0.15);color:#fca5a5;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25);margin-left:4px;">⚔️ vs ${escapeHtml(p.rival_name)}</span>` : ''}
+                            ${rivalHtml}
                         </div>
                         <div class="player-row-actions">
                             <button type="button" class="btn btn-outline btn-sm btn-reset-pick" 
-                                data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Reset this pick">
-                                ↺ Reset
+                                data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Reset this pick" style="display:inline-flex;align-items:center;gap:0.35rem;">
+                                ${refreshSvg} Reset
                             </button>
                         </div>
                     </div>
@@ -456,13 +466,19 @@
         }
 
         if (unassigned.length === 0) {
-            el.unassignedList.innerHTML = `<div class="roster-empty" style="color:var(--grass-light);">🎉 All players have chosen their teams!</div>`;
+            el.unassignedList.innerHTML = `<div class="roster-empty" style="color:var(--grass-light);">All players have chosen their squads!</div>`;
             return;
         }
+
+        const copySvg = window.TurfIcons ? TurfIcons.icon('copy', { width:12, height:12 }) : '';
+        const shareSvg = window.TurfIcons ? TurfIcons.icon('share', { width:12, height:12 }) : '';
 
         const html = unassigned.map((p, index) => {
             const tierClass = p.tier === 'skilled' ? 'tier-skilled' : 'tier-regular';
             const tierLabel = p.tier === 'skilled' ? 'Skilled' : 'Regular';
+            const rivalHtml = p.rival_name 
+                ? `<span class="rival-badge" style="font-size:0.68rem;background:rgba(239,68,68,0.15);color:#fca5a5;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25);margin-left:4px;display:inline-flex;align-items:center;gap:3px;">${window.TurfIcons ? TurfIcons.icon('users', { width:10, height:10 }) : ''} vs ${escapeHtml(p.rival_name)}</span>` 
+                : '';
 
             return `
                 <div class="player-row">
@@ -470,16 +486,16 @@
                         <span style="color:var(--text-dim);font-size:0.75rem;">#${index + 1}</span>
                         <span style="font-weight:600;">${escapeHtml(p.name)}</span>
                         <span class="tier-badge ${tierClass}">${tierLabel}</span>
-                        ${p.rival_name ? `<span class="rival-badge" style="font-size:0.68rem;background:rgba(239,68,68,0.15);color:#fca5a5;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25);margin-left:4px;">⚔️ vs ${escapeHtml(p.rival_name)}</span>` : ''}
+                        ${rivalHtml}
                     </div>
                     <div class="player-row-actions">
                         <button type="button" class="btn btn-outline btn-sm btn-copy-single-link" 
-                            data-link="${escapeHtml(p.link)}" title="Copy Personal Link">
-                            📋 Copy Link
+                            data-link="${escapeHtml(p.link)}" title="Copy Personal Link" style="display:inline-flex;align-items:center;gap:0.35rem;">
+                            ${copySvg} Copy Pass
                         </button>
                         <a href="${p.whatsapp_link}" target="_blank" rel="noopener noreferrer" 
-                            class="btn btn-whatsapp btn-sm" title="Share via WhatsApp">
-                            💬 WhatsApp
+                            class="btn btn-whatsapp btn-sm" title="Share via WhatsApp" style="display:inline-flex;align-items:center;gap:0.35rem;">
+                            ${shareSvg} WhatsApp
                         </a>
                     </div>
                 </div>
@@ -506,33 +522,41 @@
             return;
         }
 
+        const copySvg = window.TurfIcons ? TurfIcons.icon('copy', { width:12, height:12 }) : '';
+        const shareSvg = window.TurfIcons ? TurfIcons.icon('share', { width:12, height:12 }) : '';
+        const editSvg = window.TurfIcons ? TurfIcons.icon('edit', { width:12, height:12 }) : '';
+        const trashSvg = window.TurfIcons ? TurfIcons.icon('trash', { width:12, height:12 }) : '';
+
         const html = players.map(p => {
             const tierClass = p.tier === 'skilled' ? 'tier-skilled' : 'tier-regular';
             const tierLabel = p.tier === 'skilled' ? 'Skilled' : 'Regular';
-            const statusText = p.team_name ? `<span style="color:#34d399;font-size:0.75rem;">✓ ${escapeHtml(p.team_name)}</span>` : `<span style="color:var(--text-dim);font-size:0.75rem;">Pending</span>`;
+            const statusText = p.team_name ? `<span style="color:#34d399;font-size:0.75rem;font-weight:600;">${escapeHtml(p.team_name)}</span>` : `<span style="color:var(--text-dim);font-size:0.75rem;">Pending</span>`;
+            const rivalHtml = p.rival_name 
+                ? `<span class="rival-badge" style="font-size:0.68rem;background:rgba(239,68,68,0.15);color:#fca5a5;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25);margin-left:4px;display:inline-flex;align-items:center;gap:3px;">${window.TurfIcons ? TurfIcons.icon('users', { width:10, height:10 }) : ''} vs ${escapeHtml(p.rival_name)}</span>` 
+                : '';
 
             return `
                 <div class="player-row">
                     <div class="player-info" style="min-width:200px;">
                         <span style="font-weight:700;">${escapeHtml(p.name)}</span>
                         <span class="tier-badge ${tierClass}">${tierLabel}</span>
-                        ${p.rival_name ? `<span class="rival-badge" style="font-size:0.68rem;background:rgba(239,68,68,0.15);color:#fca5a5;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25);margin-left:4px;">⚔️ vs ${escapeHtml(p.rival_name)}</span>` : ''}
+                        ${rivalHtml}
                         ${statusText}
                     </div>
                     <div class="player-row-actions">
-                        <button type="button" class="btn btn-outline btn-sm btn-copy-single-link" data-link="${escapeHtml(p.link)}">
-                            📋 Link
+                        <button type="button" class="btn btn-outline btn-sm btn-copy-single-link" data-link="${escapeHtml(p.link)}" style="display:inline-flex;align-items:center;gap:0.35rem;">
+                            ${copySvg} Pass
                         </button>
-                        <a href="${p.whatsapp_link}" target="_blank" rel="noopener noreferrer" class="btn btn-whatsapp btn-sm">
-                            💬 Share
+                        <a href="${p.whatsapp_link}" target="_blank" rel="noopener noreferrer" class="btn btn-whatsapp btn-sm" style="display:inline-flex;align-items:center;gap:0.35rem;">
+                            ${shareSvg} Share
                         </a>
                         <button type="button" class="btn btn-outline btn-sm btn-edit-player" 
-                            data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-tier="${p.tier}">
-                            ✏️ Edit
+                            data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-tier="${p.tier}" style="display:inline-flex;align-items:center;gap:0.35rem;">
+                            ${editSvg} Edit
                         </button>
                         <button type="button" class="btn btn-danger btn-sm btn-delete-player" 
-                            data-id="${p.id}" data-name="${escapeHtml(p.name)}">
-                            🗑️
+                            data-id="${p.id}" data-name="${escapeHtml(p.name)}" style="padding:0.3rem 0.5rem;">
+                            ${trashSvg}
                         </button>
                     </div>
                 </div>
@@ -860,8 +884,15 @@
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
 
-        const icon = type === 'success' ? '✅' : (type === 'error' ? '⚠️' : 'ℹ️');
-        toast.innerHTML = `<span>${icon}</span> <span>${escapeHtml(message)}</span>`;
+        let icon = '';
+        if (window.TurfIcons) {
+            if (type === 'success') icon = TurfIcons.icon('check', { width: 16, height: 16 });
+            else if (type === 'error' || type === 'warning') icon = TurfIcons.icon('alert', { width: 16, height: 16 });
+            else icon = TurfIcons.icon('ball', { width: 16, height: 16 });
+        } else {
+            icon = type === 'success' ? '✓' : '!';
+        }
+        toast.innerHTML = `<span style="display:inline-flex;align-items:center;">${icon}</span> <span>${escapeHtml(message)}</span>`;
 
         el.toastContainer.appendChild(toast);
 

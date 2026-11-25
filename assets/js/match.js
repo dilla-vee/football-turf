@@ -146,10 +146,12 @@
 
         if (el.pickingClosedAlert && matchState === 'live') {
             el.pickingClosedAlert.style.display = 'flex';
-            el.pickingClosedAlert.innerHTML = `<span>⚽</span><span>Match is currently LIVE! Squad selection is locked.</span>`;
+            const icon = window.TurfIcons ? TurfIcons.icon('ball', { width: 16, height: 16 }) : '';
+            el.pickingClosedAlert.innerHTML = `<span style="display:inline-flex;align-items:center;">${icon}</span><span>Match is currently LIVE. Squad selection is locked.</span>`;
         } else if (el.pickingClosedAlert && matchState === 'finished') {
             el.pickingClosedAlert.style.display = 'flex';
-            el.pickingClosedAlert.innerHTML = `<span>🏁</span><span>Match has finished! Squad selection is locked.</span>`;
+            const icon = window.TurfIcons ? TurfIcons.icon('whistle', { width: 16, height: 16 }) : '';
+            el.pickingClosedAlert.innerHTML = `<span style="display:inline-flex;align-items:center;">${icon}</span><span>Match has finished. Squad selection is locked.</span>`;
         }
     }
 
@@ -181,7 +183,7 @@
                 const borderClass = isRunda ? 'goal-runda' : 'goal-mako';
                 return `
                     <li class="goal-feed-item ${borderClass}">
-                        <div style="display:flex;align-items:center;">
+                        <div style="display:flex;align-items:center;gap:0.4rem;">
                             <span class="goal-feed-minute">${g.minute_label}</span>
                             <span class="goal-feed-player">
                                 ${escapeHtml(g.player_name)}
@@ -202,11 +204,12 @@
             const rundaScore = d.scores.runda;
             const makoScore = d.scores.makongeni;
 
-            let winnerText = '🤝 Match Drawn!';
+            let winnerText = 'Match Drawn';
+            const trophyIcon = window.TurfIcons ? TurfIcons.icon('trophy', { width: 22, height: 22, class: 'text-brand' }) : '';
             if (rundaScore > makoScore) {
-                winnerText = '🏆 Runda FC Win!';
+                winnerText = `<span style="display:inline-flex;align-items:center;gap:0.45rem;">${trophyIcon} Runda FC Win!</span>`;
             } else if (makoScore > rundaScore) {
-                winnerText = '🏆 Makongeni FC Win!';
+                winnerText = `<span style="display:inline-flex;align-items:center;gap:0.45rem;">${trophyIcon} Makongeni FC Win!</span>`;
             }
 
             // Group scorers per team
@@ -229,12 +232,13 @@
                 const suffix = goalsCount > 1 ? 'goals' : 'goal';
                 topScorerHtml = `
                     <div class="results-top-scorer-box">
-                        <span>⭐ Top Scorer:</span>
+                        <span>Top Scorer:</span>
                         <strong>${names} (${goalsCount} ${suffix})</strong>
                     </div>
                 `;
             }
 
+            const ballSvg = window.TurfIcons ? TurfIcons.icon('ball', { width: 14, height: 14 }) : '•';
             finalResultsHtml = `
                 <div class="final-results-card">
                     <div class="results-winner-banner">${winnerText}</div>
@@ -244,15 +248,19 @@
                     
                     <div class="results-columns-grid">
                         <div class="results-team-col">
-                            <div class="results-team-col-header" style="color:#34d399;">🟢 Runda FC (${rundaScore})</div>
+                            <div class="results-team-col-header" style="color:#34d399;display:flex;align-items:center;gap:0.4rem;">
+                                ${window.TurfIcons ? TurfIcons.rundaBadge(22) : ''} Runda FC (${rundaScore})
+                            </div>
                             <ul class="results-scorers-list">
-                                ${rundaScorers.length > 0 ? rundaScorers.map(s => `<li>⚽ ${escapeHtml(s)}</li>`).join('') : '<li style="color:var(--text-dim);font-style:italic;">No goals</li>'}
+                                ${rundaScorers.length > 0 ? rundaScorers.map(s => `<li style="display:flex;align-items:center;gap:0.4rem;">${ballSvg} ${escapeHtml(s)}</li>`).join('') : '<li style="color:var(--text-dim);font-style:italic;">No goals</li>'}
                             </ul>
                         </div>
                         <div class="results-team-col">
-                            <div class="results-team-col-header" style="color:#60a5fa;">🔵 Makongeni FC (${makoScore})</div>
+                            <div class="results-team-col-header" style="color:#60a5fa;display:flex;align-items:center;gap:0.4rem;">
+                                ${window.TurfIcons ? TurfIcons.makoBadge(22) : ''} Makongeni FC (${makoScore})
+                            </div>
                             <ul class="results-scorers-list">
-                                ${makoScorers.length > 0 ? makoScorers.map(s => `<li>⚽ ${escapeHtml(s)}</li>`).join('') : '<li style="color:var(--text-dim);font-style:italic;">No goals</li>'}
+                                ${makoScorers.length > 0 ? makoScorers.map(s => `<li style="display:flex;align-items:center;gap:0.4rem;">${ballSvg} ${escapeHtml(s)}</li>`).join('') : '<li style="color:var(--text-dim);font-style:italic;">No goals</li>'}
                             </ul>
                         </div>
                     </div>
@@ -262,13 +270,18 @@
             `;
         }
 
+        const clockIcon = window.TurfIcons ? TurfIcons.icon('clock', { width: 16, height: 16 }) : '';
+        const whistleIcon = window.TurfIcons ? TurfIcons.icon('whistle', { width: 16, height: 16 }) : '';
+        const rundaCrest = window.TurfIcons ? TurfIcons.rundaBadge(48) : 'RFC';
+        const makoCrest = window.TurfIcons ? TurfIcons.makoBadge(48) : 'MFC';
+
         el.container.innerHTML = `
             ${finalResultsHtml}
 
             <div class="scoreboard-card">
                 <div class="scoreboard-top-bar">
                     <div class="match-clock-container">
-                        <span style="font-size:1.1rem;">⏱️</span>
+                        <span style="display:inline-flex;align-items:center;">${clockIcon}</span>
                         <span class="match-clock" id="matchClockDisplay">${d.elapsed_formatted || '00:00'}</span>
                     </div>
                     <div class="match-status-chip ${statusClass}">
@@ -278,7 +291,7 @@
 
                 <div class="scoreboard-teams-row">
                     <div class="team-score-side">
-                        <div class="team-score-crest">🟢</div>
+                        <div class="team-score-crest">${rundaCrest}</div>
                         <div class="team-score-name name-runda">Runda FC</div>
                     </div>
 
@@ -291,14 +304,14 @@
                     </div>
 
                     <div class="team-score-side">
-                        <div class="team-score-crest">🔵</div>
+                        <div class="team-score-crest">${makoCrest}</div>
                         <div class="team-score-name name-mako">Makongeni FC</div>
                     </div>
                 </div>
 
                 <div class="goal-feed-section">
                     <div class="goal-feed-title">
-                        <span>⚽</span>
+                        <span style="display:inline-flex;align-items:center;">${whistleIcon}</span>
                         <span>Live Goal Feed (${d.goals ? d.goals.length : 0})</span>
                     </div>
                     <ul class="goal-feed-list">
