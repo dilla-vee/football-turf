@@ -32,3 +32,7 @@ CREATE TABLE IF NOT EXISTS `goals` (
     CONSTRAINT `fk_goals_player` FOREIGN KEY (`player_id`) REFERENCES `players` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_goals_team` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Ensure Team 3 exists and team_mode setting exists
+INSERT IGNORE INTO `settings` (`setting_key`, `setting_value`) VALUES ('team_mode', '2_teams');
+INSERT IGNORE INTO `teams` (`id`, `name`) VALUES (3, 'Parklands FC');

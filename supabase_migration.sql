@@ -37,6 +37,15 @@ CREATE INDEX IF NOT EXISTS idx_goals_team ON goals(team_id);
 CREATE INDEX IF NOT EXISTS idx_goals_player ON goals(player_id);
 CREATE INDEX IF NOT EXISTS idx_goals_created ON goals(created_at);
 
--- 4. If Oliver & Jimmy were both registered on Makongeni FC from before,
+-- 4. Ensure Team 3 exists and team_mode setting exists
+INSERT INTO settings (setting_key, setting_value) 
+VALUES ('team_mode', '2_teams')
+ON CONFLICT (setting_key) DO NOTHING;
+
+INSERT INTO teams (id, name)
+VALUES (3, 'Parklands FC')
+ON CONFLICT (id) DO NOTHING;
+
+-- 5. If Oliver & Jimmy were both registered on Makongeni FC from before,
 -- reset Oliver so Oliver can pick Runda FC under the new rival rule:
 UPDATE players SET team_id = NULL, picked_at = NULL WHERE LOWER(name) = 'oliver' AND team_id = (SELECT team_id FROM players WHERE LOWER(name) = 'jimmy');
