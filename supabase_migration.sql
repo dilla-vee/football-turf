@@ -49,3 +49,38 @@ ON CONFLICT (id) DO NOTHING;
 -- 5. If Oliver & Jimmy were both registered on Makongeni FC from before,
 -- reset Oliver so Oliver can pick Runda FC under the new rival rule:
 UPDATE players SET team_id = NULL, picked_at = NULL WHERE LOWER(name) = 'oliver' AND team_id = (SELECT team_id FROM players WHERE LOWER(name) = 'jimmy');
+
+-- 6. Match History & Ballon d'Or Archives
+CREATE TABLE IF NOT EXISTS match_history (
+    id SERIAL PRIMARY KEY,
+    match_code VARCHAR(32) NOT NULL,
+    team_mode VARCHAR(16) NOT NULL DEFAULT '2_teams',
+    started_at TIMESTAMPTZ NULL,
+    ended_at TIMESTAMPTZ NULL,
+    duration_seconds INT NOT NULL DEFAULT 0,
+    duration_formatted VARCHAR(16) NOT NULL DEFAULT '00:00',
+    teams_summary TEXT NOT NULL DEFAULT '[]',
+    winner_team_name VARCHAR(100) NULL,
+    top_scorer_name VARCHAR(100) NULL,
+    top_scorer_goals INT NOT NULL DEFAULT 0,
+    man_of_the_match VARCHAR(100) NULL,
+    total_goals INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS match_history_goals (
+    id SERIAL PRIMARY KEY,
+    match_id INT NOT NULL REFERENCES match_history(id) ON DELETE CASCADE,
+    player_id INT NULL,
+    player_name VARCHAR(100) NOT NULL,
+    team_id INT NULL,
+    team_name VARCHAR(100) NOT NULL,
+    is_own_goal BOOLEAN NOT NULL DEFAULT FALSE,
+    match_minute INT NOT NULL DEFAULT 0,
+    match_second INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mh_created ON match_history(created_at);
+CREATE INDEX IF NOT EXISTS idx_mhg_match ON match_history_goals(match_id);
+CREATE INDEX IF NOT EXISTS idx_mhg_player ON match_history_goals(player_name);

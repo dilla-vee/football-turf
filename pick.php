@@ -87,6 +87,19 @@ $token = trim($_GET['t'] ?? '');
                 <span class="poll-dot"></span>
                 <span>Live squad sync active • Auto-refreshes every 5s</span>
             </div>
+
+            <!-- Ballon d'Or & Match History Hall of Fame -->
+            <section style="margin-top:2rem; border-top:1px solid var(--border-pitch); padding-top:1.5rem;">
+                <details style="cursor:pointer;" id="playerHofDetails">
+                    <summary style="font-weight:800; font-size:1.05rem; display:flex; align-items:center; gap:0.5rem; color:var(--text-primary); outline:none; user-select:none;">
+                        <span id="playerHofIcon"></span> Ballon d'Or & Match History Hall of Fame
+                    </summary>
+                    <div style="margin-top:1.25rem;">
+                        <div id="hallOfFamePodiumContainer"></div>
+                        <div id="archivedMatchesContainer" style="margin-top:1rem;"></div>
+                    </div>
+                </details>
+            </section>
         </main>
     </div>
 
@@ -108,11 +121,21 @@ $token = trim($_GET['t'] ?? '');
     <!-- Application Scripts -->
     <script src="assets/js/match.js"></script>
     <script src="assets/js/app.js"></script>
+    <script src="assets/js/history.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             if (window.TurfIcons) {
                 const errBox = document.getElementById('errorIconBox');
                 if (errBox) errBox.innerHTML = TurfIcons.icon('alert', { width: 48, height: 48 });
+                const modalBox = document.getElementById('modalIconBox');
+                if (modalBox) modalBox.innerHTML = TurfIcons.icon('shield', { width: 48, height: 48, class: 'text-brand' });
+                const alertClosedBox = document.getElementById('closedAlertIcon');
+                if (alertClosedBox) alertClosedBox.innerHTML = TurfIcons.icon('lock', { width: 18, height: 18 });
+                const hofIconBox = document.getElementById('playerHofIcon');
+                if (hofIconBox) hofIconBox.innerHTML = TurfIcons.icon('trophy', { width: 18, height: 18 });
+            }
+        });
+    </script>
                 const closedIcon = document.getElementById('closedAlertIcon');
                 if (closedIcon) closedIcon.innerHTML = TurfIcons.icon('lock', { width: 18, height: 18 });
                 const modalBox = document.getElementById('modalIconBox');

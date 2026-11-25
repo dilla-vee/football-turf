@@ -264,7 +264,7 @@ function handlePostMatchAction(PDO $pdo): void {
             break;
 
         case 'reset_match':
-            handleResetMatch($pdo);
+            handleResetMatch($pdo, $json);
             break;
 
         default:
@@ -592,18 +592,185 @@ function handleEditGoal(PDO $pdo, array $jsonInput): void {
 }
 
 /**
- * Reset Match: clears goals and returns state to 'setup', keeping player teams intact.
+ * Reset Match / Start New Match:
+ * Archives the completed match into persistent Match History & Ballon d'Or records,
+ * clears active goals, and returns state to 'setup' while preserving player teams.
  */
-function handleResetMatch(PDO $pdo): void {
+function handleResetMatch(PDO $pdo, array $jsonInput = []): void {
+    ensureMatchHistoryTables($pdo);
     $pdo->beginTransaction();
     try {
+        // 1. Fetch current match state
+        $stmtState = $pdo->query("SELECT state, started_at, ended_at FROM match_state WHERE id = 1 FOR UPDATE");
+        $stateRow = $stmtState->fetch();
+        $currentState = $stateRow['state'] ?? 'setup';
+        $startedAt = $stateRow['started_at'] ?? null;
+        $endedAt = $stateRow['ended_at'] ?? null;
+
+        // 2. Fetch all current goals
+        $goalsStmt = $pdo->query("
+            SELECT 
+                g.id, g.player_id, g.team_id, g.is_own_goal, g.match_minute, g.match_second,
+                p.name AS player_name, t.name AS team_name
+            FROM goals g
+            JOIN players p ON g.player_id = p.id
+            JOIN teams t ON g.team_id = t.id
+            ORDER BY g.match_minute ASC, g.match_second ASC, g.id ASC
+        ");
+        $goals = $goalsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $archived = false;
+        $matchCode = null;
+        $motm = null;
+
+        // Archive if goals were scored OR if match was live/finished
+        if (!empty($goals) || $currentState === 'live' || $currentState === 'finished') {
+            $teamMode = getTeamMode($pdo);
+            $caps = getTeamCaps($teamMode);
+
+            // Calculate duration
+            $durationSec = 0;
+            if (!empty($startedAt) && !empty($endedAt)) {
+                $durationSec = max(0, strtotime($endedAt) - strtotime($startedAt));
+            } elseif (!empty($startedAt)) {
+                $durationSec = max(0, time() - strtotime($startedAt));
+            }
+            $durationFormatted = sprintf("%02d:%02d", floor($durationSec / 60), $durationSec % 60);
+
+            // Fetch teams & scores
+            $teamsStmt = $pdo->prepare("SELECT id, name FROM teams ORDER BY id ASC LIMIT ?");
+            $teamsStmt->bindValue(1, $caps['team_count'], PDO::PARAM_INT);
+            $teamsStmt->execute();
+            $teamsRaw = $teamsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $scoresByTeam = [];
+            foreach ($teamsRaw as $t) {
+                $scoresByTeam[(int)$t['id']] = 0;
+            }
+            foreach ($goals as $g) {
+                $tid = (int)$g['team_id'];
+                if (isset($scoresByTeam[$tid])) {
+                    $scoresByTeam[$tid]++;
+                }
+            }
+
+            $teamsSummary = [];
+            foreach ($teamsRaw as $t) {
+                $tid = (int)$t['id'];
+                $teamsSummary[] = [
+                    'id' => $tid,
+                    'name' => $t['name'],
+                    'score' => $scoresByTeam[$tid] ?? 0
+                ];
+            }
+
+            // Determine winner
+            $winnerTeam = 'Draw';
+            if (count($teamsSummary) >= 2) {
+                $sorted = $teamsSummary;
+                usort($sorted, fn($a, $b) => $b['score'] <=> $a['score']);
+                if ($sorted[0]['score'] > $sorted[1]['score']) {
+                    $winnerTeam = $sorted[0]['name'];
+                }
+            }
+
+            // Calculate top scorer
+            $playerGoals = [];
+            foreach ($goals as $g) {
+                if (!empty($g['is_own_goal'])) continue;
+                $pName = $g['player_name'];
+                $playerGoals[$pName] = ($playerGoals[$pName] ?? 0) + 1;
+            }
+            arsort($playerGoals);
+            $topScorerName = null;
+            $topScorerGoals = 0;
+            if (!empty($playerGoals)) {
+                $topScorerName = array_key_first($playerGoals);
+                $topScorerGoals = reset($playerGoals);
+            }
+
+            // Man of the Match: override from admin input, or default to top scorer / winner MVP
+            $customMotm = trim($_POST['man_of_the_match'] ?? ($jsonInput['man_of_the_match'] ?? ''));
+            if (!empty($customMotm)) {
+                $motm = $customMotm;
+            } elseif (!empty($topScorerName)) {
+                $motm = $topScorerName;
+            } elseif ($winnerTeam !== 'Draw') {
+                $motm = $winnerTeam . ' MVP';
+            } else {
+                $motm = 'Match Drawn';
+            }
+
+            $matchCode = 'TURF-' . date('Ymd-His');
+            $totalGoals = count($goals);
+            $teamsSummaryJson = json_encode($teamsSummary);
+
+            // Insert into match_history
+            $insHistory = $pdo->prepare("
+                INSERT INTO match_history (
+                    match_code, team_mode, started_at, ended_at, duration_seconds,
+                    duration_formatted, teams_summary, winner_team_name, top_scorer_name,
+                    top_scorer_goals, man_of_the_match, total_goals, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ");
+            $insHistory->execute([
+                $matchCode,
+                $teamMode,
+                $startedAt,
+                $endedAt ?: ($currentState === 'live' ? date('Y-m-d H:i:s') : null),
+                $durationSec,
+                $durationFormatted,
+                $teamsSummaryJson,
+                $winnerTeam,
+                $topScorerName,
+                $topScorerGoals,
+                $motm,
+                $totalGoals
+            ]);
+
+            $matchHistoryId = (int)$pdo->lastInsertId();
+
+            // Insert each goal into match_history_goals
+            $insGoal = $pdo->prepare("
+                INSERT INTO match_history_goals (
+                    match_id, player_id, player_name, team_id, team_name,
+                    is_own_goal, match_minute, match_second, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ");
+            foreach ($goals as $g) {
+                $insGoal->execute([
+                    $matchHistoryId,
+                    $g['player_id'],
+                    $g['player_name'],
+                    $g['team_id'],
+                    $g['team_name'],
+                    !empty($g['is_own_goal']) ? 1 : 0,
+                    (int)$g['match_minute'],
+                    (int)$g['match_second']
+                ]);
+            }
+
+            $archived = true;
+        }
+
+        // 3. Clear active goals & reset match_state to 'setup'
         $pdo->exec("DELETE FROM goals");
         $pdo->exec("UPDATE match_state SET state = 'setup', started_at = NULL, ended_at = NULL WHERE id = 1");
         $pdo->exec("UPDATE settings SET setting_value = '0' WHERE setting_key = 'picking_locked'");
+
         $pdo->commit();
 
         $payload = buildMatchPayload($pdo);
-        $payload['message'] = 'Match scoreboard reset to setup! Team rosters have been preserved.';
+        $payload['archived'] = $archived;
+        $payload['archived_match_code'] = $matchCode;
+        $payload['man_of_the_match'] = $motm;
+
+        if ($archived) {
+            $payload['message'] = "Match results archived to history! ({$matchCode}) Ballon d'Or & MOTM records updated. New match is ready.";
+        } else {
+            $payload['message'] = 'Match scoreboard reset to setup! Team rosters have been preserved.';
+        }
+
         echo json_encode($payload);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();

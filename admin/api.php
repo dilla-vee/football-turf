@@ -80,6 +80,18 @@ try {
             handleUpdateTeamNames($pdo);
             break;
 
+        case 'match_history':
+            handleAdminMatchHistory($pdo);
+            break;
+
+        case 'set_motm':
+            handleAdminSetMotm($pdo);
+            break;
+
+        case 'delete_match':
+            handleAdminDeleteMatch($pdo);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Invalid action']);
@@ -499,7 +511,8 @@ function handleSetBaseUrl(PDO $pdo): void {
  */
 function handleSetTeamMode(PDO $pdo): void {
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-    $requestedMode = ($input['team_mode'] ?? '') === '3_teams' ? '3_teams' : '2_teams';
+    $rawMode = trim($input['mode'] ?? ($input['team_mode'] ?? ($_POST['mode'] ?? ($_POST['team_mode'] ?? ''))));
+    $requestedMode = ($rawMode === '3_teams') ? '3_teams' : '2_teams';
 
     ensureDatabaseTeamSupport($pdo);
     saveSetting($pdo, 'team_mode', $requestedMode);
@@ -520,9 +533,9 @@ function handleSetTeamMode(PDO $pdo): void {
  */
 function handleUpdateTeamNames(PDO $pdo): void {
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-    $teams = $input['teams'] ?? [];
+    $names = $input['names'] ?? ($input['teams'] ?? []);
 
-    if (!is_array($teams) || empty($teams)) {
+    if (empty($names)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'No team names provided.']);
         return;
@@ -531,16 +544,216 @@ function handleUpdateTeamNames(PDO $pdo): void {
     ensureDatabaseTeamSupport($pdo);
 
     $stmt = $pdo->prepare("UPDATE teams SET name = ? WHERE id = ?");
-    foreach ($teams as $t) {
-        $id = (int)($t['id'] ?? 0);
-        $name = trim($t['name'] ?? '');
-        if ($id > 0 && !empty($name)) {
-            $stmt->execute([$name, $id]);
+
+    if (is_array($names)) {
+        foreach ($names as $key => $val) {
+            if (is_array($val)) {
+                $id = (int)($val['id'] ?? 0);
+                $name = trim($val['name'] ?? '');
+            } else {
+                $id = (int)$key;
+                $name = trim((string)$val);
+            }
+            if ($id > 0 && !empty($name)) {
+                $stmt->execute([$name, $id]);
+            }
         }
     }
 
     echo json_encode([
         'success' => true,
         'message' => 'Team names updated successfully! Changes reflect on player passes and match boards.'
+    ]);
+}
+
+/**
+ * Admin Match History & Ballon d'Or data
+ */
+function handleAdminMatchHistory(PDO $pdo): void {
+    ensureMatchHistoryTables($pdo);
+
+    $matchesStmt = $pdo->query("
+        SELECT 
+            id, match_code, team_mode, started_at, ended_at,
+            duration_seconds, duration_formatted, teams_summary,
+            winner_team_name, top_scorer_name, top_scorer_goals,
+            man_of_the_match, total_goals, created_at
+        FROM match_history
+        ORDER BY id DESC
+    ");
+    $rawMatches = $matchesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $goalsByMatch = [];
+    if (!empty($rawMatches)) {
+        $goalsStmt = $pdo->query("
+            SELECT 
+                id, match_id, player_id, player_name, team_id, team_name,
+                is_own_goal, match_minute, match_second, created_at
+            FROM match_history_goals
+            ORDER BY match_minute ASC, match_second ASC, id ASC
+        ");
+        while ($g = $goalsStmt->fetch(PDO::FETCH_ASSOC)) {
+            $mid = (int)$g['match_id'];
+            if (!isset($goalsByMatch[$mid])) {
+                $goalsByMatch[$mid] = [];
+            }
+            $isOg = !empty($g['is_own_goal']);
+            $goalsByMatch[$mid][] = [
+                'id' => (int)$g['id'],
+                'player_id' => (int)$g['player_id'],
+                'player_name' => $g['player_name'],
+                'team_id' => (int)$g['team_id'],
+                'team_name' => $g['team_name'],
+                'is_own_goal' => $isOg,
+                'match_minute' => (int)$g['match_minute'],
+                'match_second' => (int)$g['match_second'],
+                'display_label' => $isOg 
+                    ? "{$g['match_minute']}' {$g['player_name']} (OG)"
+                    : "{$g['match_minute']}' {$g['player_name']} ({$g['team_name']})"
+            ];
+        }
+    }
+
+    $formattedMatches = [];
+    $totalGoalsCount = 0;
+
+    foreach ($rawMatches as $m) {
+        $mid = (int)$m['id'];
+        $teamsSummary = json_decode($m['teams_summary'] ?? '[]', true) ?: [];
+        $goals = $goalsByMatch[$mid] ?? [];
+        $totalGoalsCount += (int)$m['total_goals'];
+
+        $formattedMatches[] = [
+            'id' => $mid,
+            'match_code' => $m['match_code'],
+            'team_mode' => $m['team_mode'],
+            'started_at' => $m['started_at'],
+            'ended_at' => $m['ended_at'],
+            'date_formatted' => !empty($m['started_at']) ? date('M j, Y • H:i', strtotime($m['started_at'])) : date('M j, Y', strtotime($m['created_at'])),
+            'duration_formatted' => $m['duration_formatted'],
+            'teams' => $teamsSummary,
+            'winner_team_name' => $m['winner_team_name'],
+            'top_scorer_name' => $m['top_scorer_name'],
+            'top_scorer_goals' => (int)$m['top_scorer_goals'],
+            'man_of_the_match' => $m['man_of_the_match'],
+            'total_goals' => (int)$m['total_goals'],
+            'created_at' => $m['created_at'],
+            'goals' => $goals
+        ];
+    }
+
+    $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    $ogCondition = ($driver === 'pgsql') ? "is_own_goal = FALSE" : "is_own_goal = 0";
+
+    $ballonStmt = $pdo->query("
+        SELECT 
+            player_name,
+            COUNT(*) as total_goals,
+            COUNT(DISTINCT match_id) as matches_scored_in
+        FROM match_history_goals
+        WHERE {$ogCondition}
+        GROUP BY player_name
+        ORDER BY total_goals DESC, matches_scored_in DESC, player_name ASC
+    ");
+    $rawBallon = $ballonStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $ballonDor = [];
+    $rank = 1;
+    foreach ($rawBallon as $row) {
+        $ballonDor[] = [
+            'rank' => $rank++,
+            'player_name' => $row['player_name'],
+            'goals' => (int)$row['total_goals'],
+            'matches_scored_in' => (int)$row['matches_scored_in']
+        ];
+    }
+
+    $motmStmt = $pdo->query("
+        SELECT 
+            man_of_the_match as player_name,
+            COUNT(*) as total_awards
+        FROM match_history
+        WHERE man_of_the_match IS NOT NULL 
+          AND man_of_the_match != '' 
+          AND man_of_the_match NOT IN ('None', 'Match Drawn', 'Draw')
+        GROUP BY man_of_the_match
+        ORDER BY total_awards DESC, player_name ASC
+    ");
+    $rawMotm = $motmStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $motmLeaderboard = [];
+    $rankMotm = 1;
+    foreach ($rawMotm as $row) {
+        $motmLeaderboard[] = [
+            'rank' => $rankMotm++,
+            'player_name' => $row['player_name'],
+            'awards' => (int)$row['total_awards']
+        ];
+    }
+
+    $totalMatchesCount = count($formattedMatches);
+    $avgGoals = ($totalMatchesCount > 0) ? round($totalGoalsCount / $totalMatchesCount, 1) : 0;
+
+    echo json_encode([
+        'success' => true,
+        'matches' => $formattedMatches,
+        'ballon_dor' => $ballonDor,
+        'motm_leaderboard' => $motmLeaderboard,
+        'stats' => [
+            'total_matches' => $totalMatchesCount,
+            'total_goals' => $totalGoalsCount,
+            'avg_goals_per_match' => $avgGoals
+        ]
+    ]);
+}
+
+/**
+ * Admin: update Man of the Match on historical match
+ */
+function handleAdminSetMotm(PDO $pdo): void {
+    ensureMatchHistoryTables($pdo);
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    $matchId = (int)($input['match_id'] ?? ($_POST['match_id'] ?? 0));
+    $playerName = trim($input['player_name'] ?? ($_POST['player_name'] ?? ''));
+
+    if ($matchId <= 0 || empty($playerName)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Valid match ID and player name are required.']);
+        return;
+    }
+
+    $stmt = $pdo->prepare("UPDATE match_history SET man_of_the_match = ? WHERE id = ?");
+    $stmt->execute([$playerName, $matchId]);
+
+    echo json_encode([
+        'success' => true,
+        'message' => "Man of the Match updated to {$playerName}!",
+        'match_id' => $matchId,
+        'man_of_the_match' => $playerName
+    ]);
+}
+
+/**
+ * Admin: delete match from history
+ */
+function handleAdminDeleteMatch(PDO $pdo): void {
+    ensureMatchHistoryTables($pdo);
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    $matchId = (int)($input['match_id'] ?? ($_POST['match_id'] ?? 0));
+
+    if ($matchId <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Valid match ID is required.']);
+        return;
+    }
+
+    $pdo->prepare("DELETE FROM match_history_goals WHERE match_id = ?")->execute([$matchId]);
+    $stmt = $pdo->prepare("DELETE FROM match_history WHERE id = ?");
+    $stmt->execute([$matchId]);
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Match deleted from history.',
+        'match_id' => $matchId
     ]);
 }

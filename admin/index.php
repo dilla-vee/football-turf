@@ -228,6 +228,35 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
                 </div>
             </section>
 
+            <!-- ==========================================
+                 Match History & Ballon d'Or Hall of Fame
+                 ========================================== -->
+            <section id="matchHistorySection" style="margin-bottom:2.5rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.25rem;">
+                    <div>
+                        <h2 style="font-size:1.35rem; font-weight:900; margin:0 0 0.25rem 0; display:flex; align-items:center; gap:0.5rem; letter-spacing:-0.02em;">
+                            <span id="historyTitleIcon"></span> Match History & Ballon d'Or Hall of Fame
+                        </h2>
+                        <span style="font-size:0.8rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em; font-weight:700;">
+                            Archived Match Trophies • All-Time Top Scorers • Man of the Match Honours
+                        </span>
+                    </div>
+                    <button type="button" id="btnRefreshHistory" class="btn btn-outline btn-sm" style="display:inline-flex; align-items:center; gap:0.35rem; font-weight:700;">
+                        <span id="refreshHistoryIcon"></span> Refresh Records
+                    </button>
+                </div>
+
+                <!-- Stats & Podium Grid -->
+                <div id="hallOfFamePodiumContainer">
+                    <div style="text-align:center; padding:1.5rem; color:var(--text-dim);">Loading Ballon d'Or standings...</div>
+                </div>
+
+                <!-- Archived Matches List -->
+                <div id="archivedMatchesContainer" style="margin-top:1.25rem;">
+                    <div style="text-align:center; padding:1.5rem; color:var(--text-dim);">Loading match archives...</div>
+                </div>
+            </section>
+
             <!-- Pending Players (Unassigned) -->
             <section class="admin-card" style="margin-bottom:2rem;">
                 <div class="admin-card-header">
@@ -486,6 +515,38 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
         </div>
     </div>
 
+    <!-- Modal: Edit Man of the Match on Historical Match -->
+    <div id="editMotmModalOverlay" class="modal-overlay">
+        <div class="modal-card" style="max-width:440px;">
+            <div style="text-align:center; margin-bottom:1rem;">
+                <div id="motmModalIconBox" style="margin-bottom:0.5rem; display:flex; justify-content:center;"></div>
+                <h3 class="modal-title" style="margin:0;">Award Man of the Match</h3>
+                <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0.35rem;" id="editMotmMatchDesc">
+                    Award or update the official MVP honours for this match.
+                </p>
+            </div>
+            <form id="editMotmForm">
+                <input type="hidden" id="editMotmMatchId" value="">
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label for="editMotmPlayerSelect" class="form-label">Award MOTM To</label>
+                    <select id="editMotmPlayerSelect" class="form-input" style="width:100%;">
+                        <!-- Populated dynamically via history.js -->
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:1.5rem;">
+                    <label for="editMotmCustomInput" class="form-label">Or Custom Name / Title</label>
+                    <input type="text" id="editMotmCustomInput" class="form-input" placeholder="e.g. Spruu (Midfield Masterclass)">
+                </div>
+                <div class="modal-actions" style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                    <button type="button" class="modal-btn modal-btn-cancel" id="btnCancelEditMotm">Cancel</button>
+                    <button type="submit" class="modal-btn modal-btn-confirm" style="background:var(--btn-primary-bg); color:var(--btn-primary-text); font-weight:800;">
+                        Save MOTM
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Static Icons Initialization Script -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -507,6 +568,9 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
                 setIcon('pendingTitleIcon', 'clock', { width: 18, height: 18 });
                 setIcon('addPlayerTitleIcon', 'plus', { width: 18, height: 18 });
                 setIcon('dirTitleIcon', 'users', { width: 18, height: 18 });
+                setIcon('historyTitleIcon', 'trophy', { width: 20, height: 20 });
+                setIcon('refreshHistoryIcon', 'refresh', { width: 14, height: 14 });
+                setIcon('motmModalIconBox', 'medal', { width: 36, height: 36 });
                 setIcon('waModalIcon', 'share', { width: 36, height: 36 });
                 setIcon('copyWaBtnIcon', 'copy', { width: 16, height: 16 });
                 setIcon('goalModalIcon', 'ball', { width: 36, height: 36, class: 'text-brand' });
@@ -522,5 +586,6 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
     <!-- Admin Application Scripts -->
     <script src="../assets/js/admin.js"></script>
     <script src="../assets/js/admin_match.js"></script>
+    <script src="../assets/js/history.js"></script>
 </body>
 </html>

@@ -99,19 +99,14 @@ define('TOTAL_PLAYERS_ALLOWED', 20);
  * Get active team mode ('2_teams' or '3_teams').
  */
 function getTeamMode(PDO $pdo, bool $refresh = false): string {
-    static $mode = null;
-    if ($mode !== null && !$refresh) {
-        return $mode;
-    }
     try {
         $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'team_mode'");
         $stmt->execute();
         $val = $stmt->fetchColumn();
-        $mode = ($val === '3_teams') ? '3_teams' : '2_teams';
+        return ($val === '3_teams') ? '3_teams' : '2_teams';
     } catch (Throwable $e) {
-        $mode = '2_teams';
+        return '2_teams';
     }
-    return $mode;
 }
 
 /**
@@ -166,6 +161,100 @@ function ensureDatabaseTeamSupport(PDO $pdo): void {
         }
     } catch (Throwable $e) {
         // Non-blocking if table not ready yet
+    }
+}
+
+/**
+ * Auto-ensures match history & Ballon d'Or tables exist across MySQL, PostgreSQL and SQLite.
+ */
+function ensureMatchHistoryTables(PDO $pdo): void {
+    static $ensured = false;
+    if ($ensured) return;
+    $ensured = true;
+
+    try {
+        $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+        if ($driver === 'pgsql') {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS match_history (
+                    id SERIAL PRIMARY KEY,
+                    match_code VARCHAR(32) NOT NULL,
+                    team_mode VARCHAR(16) NOT NULL DEFAULT '2_teams',
+                    started_at TIMESTAMPTZ NULL,
+                    ended_at TIMESTAMPTZ NULL,
+                    duration_seconds INT NOT NULL DEFAULT 0,
+                    duration_formatted VARCHAR(16) NOT NULL DEFAULT '00:00',
+                    teams_summary TEXT NOT NULL DEFAULT '[]',
+                    winner_team_name VARCHAR(100) NULL,
+                    top_scorer_name VARCHAR(100) NULL,
+                    top_scorer_goals INT NOT NULL DEFAULT 0,
+                    man_of_the_match VARCHAR(100) NULL,
+                    total_goals INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+
+                CREATE TABLE IF NOT EXISTS match_history_goals (
+                    id SERIAL PRIMARY KEY,
+                    match_id INT NOT NULL REFERENCES match_history(id) ON DELETE CASCADE,
+                    player_id INT NULL,
+                    player_name VARCHAR(100) NOT NULL,
+                    team_id INT NULL,
+                    team_name VARCHAR(100) NOT NULL,
+                    is_own_goal BOOLEAN NOT NULL DEFAULT FALSE,
+                    match_minute INT NOT NULL DEFAULT 0,
+                    match_second INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_mh_created ON match_history(created_at);
+                CREATE INDEX IF NOT EXISTS idx_mhg_match ON match_history_goals(match_id);
+                CREATE INDEX IF NOT EXISTS idx_mhg_player ON match_history_goals(player_name);
+            ");
+        } else {
+            // MySQL and SQLite
+            $autoInc = ($driver === 'sqlite') ? 'AUTOINCREMENT' : 'AUTO_INCREMENT';
+            $dtType = ($driver === 'sqlite') ? 'TEXT' : 'DATETIME';
+            $engine = ($driver === 'mysql') ? 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
+            $boolType = ($driver === 'sqlite') ? 'INTEGER' : 'TINYINT(1)';
+            $nowDefault = ($driver === 'sqlite') ? 'TEXT DEFAULT CURRENT_TIMESTAMP' : 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP';
+
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS match_history (
+                    id INTEGER PRIMARY KEY {$autoInc},
+                    match_code VARCHAR(32) NOT NULL,
+                    team_mode VARCHAR(16) NOT NULL DEFAULT '2_teams',
+                    started_at {$dtType} NULL,
+                    ended_at {$dtType} NULL,
+                    duration_seconds INT NOT NULL DEFAULT 0,
+                    duration_formatted VARCHAR(16) NOT NULL DEFAULT '00:00',
+                    teams_summary TEXT NOT NULL,
+                    winner_team_name VARCHAR(100) NULL,
+                    top_scorer_name VARCHAR(100) NULL,
+                    top_scorer_goals INT NOT NULL DEFAULT 0,
+                    man_of_the_match VARCHAR(100) NULL,
+                    total_goals INT NOT NULL DEFAULT 0,
+                    created_at {$nowDefault}
+                ) {$engine}
+            ");
+
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS match_history_goals (
+                    id INTEGER PRIMARY KEY {$autoInc},
+                    match_id INT NOT NULL,
+                    player_id INT NULL,
+                    player_name VARCHAR(100) NOT NULL,
+                    team_id INT NULL,
+                    team_name VARCHAR(100) NOT NULL,
+                    is_own_goal {$boolType} NOT NULL DEFAULT 0,
+                    match_minute INT NOT NULL DEFAULT 0,
+                    match_second INT NOT NULL DEFAULT 0,
+                    created_at {$nowDefault}
+                ) {$engine}
+            ");
+        }
+    } catch (Throwable $e) {
+        // Non-blocking fallback
     }
 }
 

@@ -504,12 +504,12 @@
             const res = await fetch('api.php?action=set_team_mode', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: mode })
+                body: JSON.stringify({ mode: mode, team_mode: mode })
             });
             const data = await res.json();
             if (data.success) {
                 showToast(data.message || `Switched to ${mode === '3_teams' ? '3 squads (6v6v6)' : '2 squads (9v9)'}`, 'success');
-                fetchDashboardData();
+                await fetchDashboardData();
             } else {
                 showToast(data.error || 'Failed to switch match mode', 'error');
             }

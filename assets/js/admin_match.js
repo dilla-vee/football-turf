@@ -173,6 +173,7 @@
         const plusIcon = window.TurfIcons ? TurfIcons.icon('plus', { width:14, height:14 }) : '+';
         const shareIcon = window.TurfIcons ? TurfIcons.icon('share', { width:15, height:15 }) : '';
         const refreshIcon = window.TurfIcons ? TurfIcons.icon('refresh', { width:15, height:15 }) : '';
+        const trophyIcon = window.TurfIcons ? TurfIcons.icon('trophy', { width:16, height:16 }) : '';
 
         if (isSetup) {
             const canStart = d.can_start;
@@ -185,11 +186,19 @@
                 <button type="button" class="btn btn-outline btn-open-keyin-score" style="font-size:1rem;padding:0.75rem 1.25rem;border-color:var(--grass-light);color:var(--grass-light);font-weight:700;display:inline-flex;align-items:center;gap:0.45rem;">
                     ${plusIcon} Key in Score / Record Goal
                 </button>
+                ${(d.goals && d.goals.length > 0) ? `
+                    <button type="button" id="btnAdminResetMatch" class="btn btn-outline" style="font-size:1rem;padding:0.75rem 1.25rem;display:inline-flex;align-items:center;gap:0.45rem;">
+                        ${trophyIcon} Start New Match (Save to History)
+                    </button>
+                ` : ''}
             `;
         } else if (isLive) {
             actionButtonsHtml = `
                 <button type="button" id="btnAdminEndMatch" class="btn btn-danger" style="font-size:1rem;padding:0.75rem 1.5rem;background:#ef4444;border-color:#ef4444;display:inline-flex;align-items:center;gap:0.45rem;">
                     ${whistleIcon} End Match (Full Time)
+                </button>
+                <button type="button" id="btnAdminResetMatch" class="btn btn-outline" style="font-size:1rem;padding:0.75rem 1.25rem;display:inline-flex;align-items:center;gap:0.45rem;">
+                    ${trophyIcon} Start New Match (Save to History)
                 </button>
                 <button type="button" class="btn btn-primary btn-open-keyin-score" style="font-size:1rem;padding:0.75rem 1.25rem;font-weight:700;display:inline-flex;align-items:center;gap:0.45rem;">
                     ${plusIcon} Key in Score / Record Goal
@@ -197,11 +206,11 @@
             `;
         } else if (isFinished) {
             actionButtonsHtml = `
+                <button type="button" id="btnAdminResetMatch" class="btn btn-primary" style="padding:0.75rem 1.4rem;display:inline-flex;align-items:center;gap:0.45rem;font-weight:800;">
+                    ${trophyIcon} Start New Match (Save to History)
+                </button>
                 <button type="button" id="btnAdminCopyWhatsApp" class="btn btn-whatsapp" style="padding:0.75rem 1.25rem;display:inline-flex;align-items:center;gap:0.45rem;">
                     ${shareIcon} Copy Result for WhatsApp
-                </button>
-                <button type="button" id="btnAdminResetMatch" class="btn btn-warning" style="padding:0.75rem 1.25rem;display:inline-flex;align-items:center;gap:0.45rem;">
-                    ${refreshIcon} Start New Match (Reset Scoreboard)
                 </button>
                 <button type="button" class="btn btn-outline btn-open-keyin-score" style="padding:0.75rem 1.25rem;display:inline-flex;align-items:center;gap:0.45rem;">
                     ${plusIcon} Key in Goal
@@ -894,9 +903,19 @@
         }
     }
 
-    // Reset Match
+    // Start New Match (Save to History & Reset Scoreboard)
     async function handleResetMatchClick() {
-        if (!confirm('Reset match scoreboard?\n\nThis will clear goals and return to setup state, but WILL KEEP team picks intact.')) {
+        const hasGoals = state.data && state.data.goals && state.data.goals.length > 0;
+        const isLiveOrFinished = state.data && (state.data.state === 'live' || state.data.state === 'finished');
+
+        let msg = 'Start a new match?\n\n';
+        if (hasGoals || isLiveOrFinished) {
+            msg += 'The current match results, goal scorers, and Man of the Match will be permanently SAVED to Match History & Ballon d\'Or records.\n\nActive squad picks will remain intact for the new match.';
+        } else {
+            msg += 'This will reset the match scoreboard to setup state. Squad picks remain intact.';
+        }
+
+        if (!confirm(msg)) {
             return;
         }
 
@@ -910,12 +929,17 @@
             if (data.success) {
                 state.data = data;
                 renderAdminMatch();
-                notifyToast(data.message || 'Match reset to setup!', 'success');
+                notifyToast(data.message || 'Match archived! New match is ready.', 'success');
+
+                // Trigger instant refresh of Hall of Fame & Match History
+                if (window.TurfHistory && typeof window.TurfHistory.fetchHistory === 'function') {
+                    window.TurfHistory.fetchHistory();
+                }
             } else {
-                notifyToast(data.error || 'Failed to reset match', 'error');
+                notifyToast(data.error || 'Failed to start new match', 'error');
             }
         } catch {
-            notifyToast('Network error resetting match', 'error');
+            notifyToast('Network error starting new match', 'error');
         }
     }
 
