@@ -20,6 +20,8 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
         return;
     }
 
+    ensureDatabaseTeamSupport($pdo);
+
     // Lookup viewer player by token
     $stmt = $pdo->prepare("SELECT id, name, tier, team_id, picked_at FROM players WHERE token = ? LIMIT 1");
     $stmt->execute([$token]);
@@ -30,6 +32,12 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
         echo json_encode(['success' => false, 'error' => 'Invalid or unknown player token', 'code' => 'INVALID_TOKEN']);
         return;
     }
+
+    // Check active team mode and capacity rules
+    $teamMode = getTeamMode($pdo);
+    $caps = getTeamCaps($teamMode);
+    $activeTeamCount = $caps['team_count'];
+    $maxTeamSize = $caps['max_team_size'];
 
     // Check if picking is globally locked
     $stmtLock = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'picking_locked'");
@@ -47,12 +55,14 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
         }
     }
 
-    // Fetch teams
-    $teamsStmt = $pdo->query("SELECT id, name FROM teams ORDER BY id ASC");
+    // Fetch active teams (2 or 3 teams)
+    $teamsStmt = $pdo->prepare("SELECT id, name FROM teams ORDER BY id ASC LIMIT ?");
+    $teamsStmt->bindValue(1, $activeTeamCount, PDO::PARAM_INT);
+    $teamsStmt->execute();
     $teams = $teamsStmt->fetchAll();
 
     $viewerTier = $viewer['tier'];
-    $maxForViewerTier = ($viewerTier === 'skilled') ? MAX_SKILLED_PER_TEAM : MAX_REGULAR_PER_TEAM;
+    $maxForViewerTier = ($viewerTier === 'skilled') ? $caps['max_skilled_per_team'] : $caps['max_regular_per_team'];
 
     $teamsData = [];
     $selectableCount = 0;
@@ -93,7 +103,11 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
         // Rival constraint: cannot join the same team as your paired opponent
         $blockedByRival = ($rivalTeamId !== null && $teamId === $rivalTeamId);
 
-        $spotsLeft = max(0, $maxForViewerTier - $currentTierCount);
+        // Spots left considering both tier limit and total team size limit
+        $tierSpotsLeft = max(0, $maxForViewerTier - $currentTierCount);
+        $totalSpotsLeft = max(0, $maxTeamSize - $totalTeamMembers);
+        $spotsLeft = min($tierSpotsLeft, $totalSpotsLeft);
+
         if ($blockedByRival) {
             $spotsLeft = 0;
         }
@@ -110,7 +124,7 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
             'id' => $teamId,
             'name' => $teamName,
             'total_players' => $totalTeamMembers,
-            'max_team_size' => TOTAL_PLAYERS_PER_TEAM,
+            'max_team_size' => $maxTeamSize,
             'spots_left' => $spotsLeft,
             'is_full_for_viewer' => $isFullForViewer,
             'blocked_by_rival' => $blockedByRival,
@@ -125,6 +139,8 @@ function handleStatus(PDO $pdo, array $jsonInput = []): void {
 
     echo json_encode([
         'success' => true,
+        'team_mode' => $teamMode,
+        'team_caps' => $caps,
         'player' => [
             'name' => $viewer['name'],
             'has_picked' => ($viewer['team_id'] !== null),
@@ -201,6 +217,25 @@ function handlePick(PDO $pdo, array $jsonInput = []): void {
             return;
         }
 
+        ensureDatabaseTeamSupport($pdo);
+        $teamMode = getTeamMode($pdo);
+        $caps = getTeamCaps($teamMode);
+        $activeTeamCount = $caps['team_count'];
+        $maxTeamSize = $caps['max_team_size'];
+
+        // Verify requested team is active in current match mode
+        $activeTeamsStmt = $pdo->prepare("SELECT id FROM teams ORDER BY id ASC LIMIT ?");
+        $activeTeamsStmt->bindValue(1, $activeTeamCount, PDO::PARAM_INT);
+        $activeTeamsStmt->execute();
+        $validTeamIds = array_map('intval', $activeTeamsStmt->fetchAll(PDO::FETCH_COLUMN));
+
+        if (!in_array($requestedTeamId, $validTeamIds, true)) {
+            $pdo->rollBack();
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'The selected team is not active for this match mode.']);
+            return;
+        }
+
         // 4. Lock target team row in teams table
         // This serializes all concurrent picks for this team, preventing race conditions.
         $teamStmt = $pdo->prepare("SELECT id, name FROM teams WHERE id = ? FOR UPDATE");
@@ -219,32 +254,43 @@ function handlePick(PDO $pdo, array $jsonInput = []): void {
         $rival = findRivalPlayer($pdo, $player['name']);
         if ($rival && $rival['team_id'] !== null && (int)$rival['team_id'] === $requestedTeamId) {
             $pdo->rollBack();
-            $otherTeamStmt = $pdo->prepare("SELECT name FROM teams WHERE id != ? LIMIT 1");
-            $otherTeamStmt->execute([$requestedTeamId]);
-            $otherTeamName = $otherTeamStmt->fetchColumn() ?: 'the opposing team';
-
             http_response_code(409);
             echo json_encode([
                 'success' => false,
-                'error' => "{$player['name']} and {$rival['name']} are paired opponents and cannot be on the same team! You must join {$otherTeamName}."
+                'error' => "{$player['name']} and {$rival['name']} are paired opponents and cannot be on the same team! Please choose another squad."
             ]);
             return;
         }
 
         $tier = $player['tier'];
-        $maxAllowed = ($tier === 'skilled') ? MAX_SKILLED_PER_TEAM : MAX_REGULAR_PER_TEAM;
+        $maxAllowedTier = ($tier === 'skilled') ? $caps['max_skilled_per_team'] : $caps['max_regular_per_team'];
 
-        // 6. Count existing players in this team for this tier
-        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ? AND tier = ?");
-        $countStmt->execute([$requestedTeamId, $tier]);
-        $currentTierCount = (int)$countStmt->fetchColumn();
+        // 6. Check total team size cap
+        $countTotalStmt = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ?");
+        $countTotalStmt->execute([$requestedTeamId]);
+        $totalTeamMembers = (int)$countTotalStmt->fetchColumn();
 
-        if ($currentTierCount >= $maxAllowed) {
+        if ($totalTeamMembers >= $maxTeamSize) {
             $pdo->rollBack();
             http_response_code(409);
             echo json_encode([
                 'success' => false,
-                'error' => "{$team['name']} is already full for your tier. Only the other team has open spots."
+                'error' => "{$team['name']} is already full (capacity: {$maxTeamSize} players)."
+            ]);
+            return;
+        }
+
+        // 7. Check tier cap
+        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ? AND tier = ?");
+        $countStmt->execute([$requestedTeamId, $tier]);
+        $currentTierCount = (int)$countStmt->fetchColumn();
+
+        if ($currentTierCount >= $maxAllowedTier) {
+            $pdo->rollBack();
+            http_response_code(409);
+            echo json_encode([
+                'success' => false,
+                'error' => "{$team['name']} has reached its limit for your tier ({$maxAllowedTier} players max)."
             ]);
             return;
         }

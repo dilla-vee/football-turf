@@ -18,7 +18,10 @@ require_once __DIR__ . '/config.php';
 <body>
     <div class="container" style="max-width:540px; padding-top:2.5rem;">
         <header class="app-header">
-            <div class="brand-badge"><span class="badge-dot"></span> MATCHDAY SQUAD SELECTION</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <div class="brand-badge"><span class="badge-dot"></span> MATCHDAY SQUAD SELECTION</div>
+                <button type="button" class="theme-toggle-btn" onclick="TurfTheme.toggle()" aria-label="Toggle theme"></button>
+            </div>
             <h1 class="app-title">TURF TEAMS</h1>
             <p class="app-subtitle">Balanced Squads • 18 Players • Live Match Scoreboard</p>
         </header>
@@ -27,9 +30,7 @@ require_once __DIR__ . '/config.php';
             <div id="indexBadgeContainer" style="margin-bottom:1.25rem;"></div>
             <h2 style="font-size:1.3rem; margin-bottom:0.75rem; color:var(--text-primary); letter-spacing:-0.02em;">Player Pass Required</h2>
             <p style="color:var(--text-secondary); font-size:0.95rem; line-height:1.6; margin-bottom:1.5rem;">
-                Each player receives a unique personal link on WhatsApp to choose between 
-                <strong style="color:var(--runda-crest);">Runda FC</strong> and 
-                <strong style="color:var(--mako-crest);">Makongeni FC</strong>.
+                Each player receives a unique personal link on WhatsApp to choose their squad and follow the live broadcast match scoreboard.
             </p>
 
             <!-- Quick Token Jump Form -->

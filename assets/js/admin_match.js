@@ -92,20 +92,6 @@
                 if (e.target === el.keyInModalOverlay) closeKeyInScoreModal();
             });
         }
-        if (el.keyInTeamRunda) {
-            el.keyInTeamRunda.addEventListener('click', () => {
-                activeKeyInTeam = 'runda';
-                updateKeyInTeamButtons();
-                populateKeyInPlayerSelect();
-            });
-        }
-        if (el.keyInTeamMako) {
-            el.keyInTeamMako.addEventListener('click', () => {
-                activeKeyInTeam = 'makongeni';
-                updateKeyInTeamButtons();
-                populateKeyInPlayerSelect();
-            });
-        }
     }
 
     function startPolling() {
@@ -231,46 +217,30 @@
             playerGoalsMap[pid]++;
         });
 
-        // Middle Section: Tap-to-Record Rosters (Side-by-Side)
+        // Middle Section: Tap-to-Record Rosters (Dynamically supports 2 or 3 teams)
         let rostersHtml = '';
         if (d.teams && d.teams.length >= 2) {
-            const runda = d.teams.find(t => t.name.toLowerCase().includes('runda')) || d.teams[0];
-            const mako = d.teams.find(t => t.name.toLowerCase().includes('makongeni')) || d.teams[1];
-
-            // Look up squad members from global admin state or DOM
-            const rundaMembers = getTeamMembers(runda.id);
-            const makoMembers = getTeamMembers(mako.id);
-
-            const rundaBadge = window.TurfIcons ? TurfIcons.rundaBadge(22) : '';
-            const makoBadge = window.TurfIcons ? TurfIcons.makoBadge(22) : '';
-
             rostersHtml = `
                 <div class="tap-roster-grid">
-                    <!-- Runda FC Tap Roster -->
-                    <div class="admin-card" style="border-top: 3px solid var(--runda-primary);">
-                        <div class="admin-card-header" style="margin-bottom:0.75rem;">
-                            <h4 style="margin:0;font-size:1.1rem;color:#34d399;display:flex;align-items:center;gap:0.4rem;">${rundaBadge} ${escapeHtml(runda.name)}</h4>
-                            <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="runda" style="border-color:#10b981;color:#34d399;font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;">
-                                ${plusIcon} Record Goal
-                            </button>
-                        </div>
-                        <div style="display:flex;flex-direction:column;gap:0.5rem;">
-                            ${renderPlayerTapButtons(rundaMembers, runda, isLive, playerGoalsMap)}
-                        </div>
-                    </div>
-
-                    <!-- Makongeni FC Tap Roster -->
-                    <div class="admin-card" style="border-top: 3px solid var(--mako-primary);">
-                        <div class="admin-card-header" style="margin-bottom:0.75rem;">
-                            <h4 style="margin:0;font-size:1.1rem;color:#60a5fa;display:flex;align-items:center;gap:0.4rem;">${makoBadge} ${escapeHtml(mako.name)}</h4>
-                            <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="makongeni" style="border-color:#3b82f6;color:#60a5fa;font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;">
-                                ${plusIcon} Record Goal
-                            </button>
-                        </div>
-                        <div style="display:flex;flex-direction:column;gap:0.5rem;">
-                            ${renderPlayerTapButtons(makoMembers, mako, isLive, playerGoalsMap)}
-                        </div>
-                    </div>
+                    ${d.teams.map(team => {
+                        const members = getTeamMembers(team.id);
+                        const badge = window.TurfIcons ? TurfIcons.teamBadge(team.name, 22) : '';
+                        return `
+                            <div class="admin-card">
+                                <div class="admin-card-header" style="margin-bottom:0.75rem;">
+                                    <h4 style="margin:0;font-size:1.05rem;display:flex;align-items:center;gap:0.4rem;">
+                                        ${badge} ${escapeHtml(team.name)}
+                                    </h4>
+                                    <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team-id="${team.id}" style="font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;">
+                                        ${plusIcon} Record Goal
+                                    </button>
+                                </div>
+                                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                                    ${renderPlayerTapButtons(members, team, isLive, playerGoalsMap)}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             `;
         }
@@ -284,7 +254,7 @@
             const reversedGoals = [...d.goals].reverse();
             goalLogRowsHtml = reversedGoals.map(g => `
                 <tr>
-                    <td style="font-family:'JetBrains Mono', monospace;font-weight:700;color:#fbbf24;">${g.minute_label}</td>
+                    <td style="font-family:'JetBrains Mono', monospace;font-weight:700;color:var(--text-primary);">${g.minute_label}</td>
                     <td>
                         <strong style="color:var(--text-primary);">${escapeHtml(g.player_name)}</strong>
                         ${g.is_own_goal ? '<span class="goal-feed-badge-og">OG</span>' : ''}
@@ -317,8 +287,55 @@
         }
 
         const clockSvg = window.TurfIcons ? TurfIcons.icon('clock', { width:16, height:16 }) : '';
-        const rundaCrestLarge = window.TurfIcons ? TurfIcons.rundaBadge(44) : 'RFC';
-        const makoCrestLarge = window.TurfIcons ? TurfIcons.makoBadge(44) : 'MFC';
+
+        // Scoreboard teams row (2 or 3 teams)
+        let scoreboardTeamsHtml = '';
+        if (d.teams && d.teams.length === 2) {
+            const t1 = d.teams[0];
+            const t2 = d.teams[1];
+            scoreboardTeamsHtml = `
+                <div class="scoreboard-teams-row">
+                    <div class="team-score-side">
+                        <div class="team-score-crest">${window.TurfIcons ? TurfIcons.teamBadge(t1.name, 44) : ''}</div>
+                        <div class="team-score-name">${escapeHtml(t1.name)}</div>
+                        <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team-id="${t1.id}" style="margin-top:0.5rem;font-size:0.75rem;padding:0.25rem 0.6rem;">
+                            + Goal
+                        </button>
+                    </div>
+
+                    <div class="scoreboard-center">
+                        <div class="score-display-box">
+                            <span class="score-num">${t1.score ?? 0}</span>
+                            <span class="score-divider">-</span>
+                            <span class="score-num">${t2.score ?? 0}</span>
+                        </div>
+                    </div>
+
+                    <div class="team-score-side">
+                        <div class="team-score-crest">${window.TurfIcons ? TurfIcons.teamBadge(t2.name, 44) : ''}</div>
+                        <div class="team-score-name">${escapeHtml(t2.name)}</div>
+                        <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team-id="${t2.id}" style="margin-top:0.5rem;font-size:0.75rem;padding:0.25rem 0.6rem;">
+                            + Goal
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else if (d.teams && d.teams.length >= 3) {
+            scoreboardTeamsHtml = `
+                <div class="scoreboard-teams-row" style="display:grid;grid-template-columns:repeat(${d.teams.length}, 1fr);gap:1rem;">
+                    ${d.teams.map(t => `
+                        <div class="team-score-side">
+                            <div class="team-score-crest">${window.TurfIcons ? TurfIcons.teamBadge(t.name, 36) : ''}</div>
+                            <div class="team-score-name">${escapeHtml(t.name)}</div>
+                            <div class="score-num" style="font-size:2.5rem;font-weight:800;margin:0.25rem 0;">${t.score ?? 0}</div>
+                            <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team-id="${t.id}" style="font-size:0.75rem;padding:0.25rem 0.6rem;">
+                                + Goal
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
 
         el.container.innerHTML = `
             <!-- Top Scoreboard Card -->
@@ -333,34 +350,10 @@
                     </div>
                 </div>
 
-                <div class="scoreboard-teams-row">
-                    <div class="team-score-side">
-                        <div class="team-score-crest">${rundaCrestLarge}</div>
-                        <div class="team-score-name name-runda">Runda FC</div>
-                        <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="runda" style="margin-top:0.5rem;font-size:0.75rem;padding:0.25rem 0.6rem;border-color:#10b981;color:#34d399;">
-                            + Goal (RFC)
-                        </button>
-                    </div>
-
-                    <div class="scoreboard-center">
-                        <div class="score-display-box">
-                            <span class="score-num">${d.scores.runda}</span>
-                            <span class="score-divider">-</span>
-                            <span class="score-num">${d.scores.makongeni}</span>
-                        </div>
-                    </div>
-
-                    <div class="team-score-side">
-                        <div class="team-score-crest">${makoCrestLarge}</div>
-                        <div class="team-score-name name-mako">Makongeni FC</div>
-                        <button type="button" class="btn btn-outline btn-sm btn-quick-keyin" data-team="makongeni" style="margin-top:0.5rem;font-size:0.75rem;padding:0.25rem 0.6rem;border-color:#3b82f6;color:#60a5fa;">
-                            + Goal (MFC)
-                        </button>
-                    </div>
-                </div>
+                ${scoreboardTeamsHtml}
 
                 <!-- Match Lifecycle Action Toolbar -->
-                <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.08);display:flex;justify-content:center;gap:0.75rem;flex-wrap:wrap;">
+                <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border-pitch);display:flex;justify-content:center;gap:0.75rem;flex-wrap:wrap;">
                     ${actionButtonsHtml}
                 </div>
             </div>
@@ -382,30 +375,12 @@
                             ${plusIcon} Key in Score / Goal
                         </button>
                         ${d.goals && d.goals.length > 0 ? `
-                            <button type="button" id="btnAdminUndoGoal" class="btn btn-outline btn-sm" style="border-color:#f59e0b;color:#fbbf24;display:inline-flex;align-items:center;gap:0.35rem;">
+                            <button type="button" id="btnAdminUndoGoal" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:0.35rem;">
                                 ${refreshIcon} Undo Last Goal
                             </button>
                         ` : ''}
                     </div>
                 </div>
-
-                <div style="overflow-x:auto;">
-                    <table class="goal-log-table">
-                        <thead>
-                            <tr>
-                                <th>Min</th>
-                                <th>Player</th>
-                                <th>Credited To</th>
-                                <th style="text-align:right;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${goalLogRowsHtml}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
 
                 <div style="overflow-x:auto;">
                     <table class="goal-log-table">
@@ -693,12 +668,20 @@
         }
     }
 
-    // Modal: Key In Score / Goal
-    let activeKeyInTeam = 'runda';
+    // Modal: Key In Score / Goal (Dynamic for 2 or 3 teams)
+    let activeKeyInTeamId = 1;
 
-    function openKeyInScoreModal(defaultTeam = 'runda') {
-        activeKeyInTeam = defaultTeam;
-        updateKeyInTeamButtons();
+    function openKeyInScoreModal(defaultTeam) {
+        if (typeof defaultTeam === 'number') {
+            activeKeyInTeamId = defaultTeam;
+        } else if (typeof defaultTeam === 'string' && state.data?.teams) {
+            const found = state.data.teams.find(t => t.id == defaultTeam || t.name.toLowerCase().includes(defaultTeam.toLowerCase()));
+            activeKeyInTeamId = found ? found.id : (state.data.teams[0]?.id || 1);
+        } else if (state.data?.teams?.length > 0) {
+            activeKeyInTeamId = state.data.teams[0].id;
+        }
+
+        renderKeyInTeamButtons();
         populateKeyInPlayerSelect();
 
         // Calculate default minute
@@ -724,24 +707,31 @@
         if (el.keyInModalOverlay) el.keyInModalOverlay.classList.remove('active');
     }
 
-    function updateKeyInTeamButtons() {
-        if (el.keyInTeamRunda && el.keyInTeamMako) {
-            if (activeKeyInTeam === 'runda') {
-                el.keyInTeamRunda.classList.add('active');
-                el.keyInTeamRunda.style.borderColor = '#10b981';
-                el.keyInTeamRunda.style.color = '#34d399';
-                el.keyInTeamMako.classList.remove('active');
-                el.keyInTeamMako.style.borderColor = 'var(--border-pitch)';
-                el.keyInTeamMako.style.color = 'var(--text-secondary)';
-            } else {
-                el.keyInTeamMako.classList.add('active');
-                el.keyInTeamMako.style.borderColor = '#3b82f6';
-                el.keyInTeamMako.style.color = '#60a5fa';
-                el.keyInTeamRunda.classList.remove('active');
-                el.keyInTeamRunda.style.borderColor = 'var(--border-pitch)';
-                el.keyInTeamRunda.style.color = 'var(--text-secondary)';
-            }
-        }
+    function renderKeyInTeamButtons() {
+        const container = document.getElementById('keyInTeamButtonsContainer');
+        if (!container || !state.data?.teams) return;
+
+        container.innerHTML = state.data.teams.map(t => {
+            const isActive = (t.id === activeKeyInTeamId);
+            const activeStyle = isActive 
+                ? 'background:var(--text-primary);color:var(--bg-pitch);border-color:var(--text-primary);font-weight:800;'
+                : 'background:transparent;color:var(--text-primary);border-color:var(--border-pitch);font-weight:600;';
+            const badge = window.TurfIcons ? TurfIcons.teamBadge(t.name, 20) : '';
+            return `
+                <button type="button" class="btn btn-outline keyin-team-dyn-btn" data-team-id="${t.id}" style="${activeStyle}padding:0.45rem 0.85rem;display:inline-flex;align-items:center;gap:0.4rem;font-size:0.85rem;">
+                    ${badge}
+                    <span>${escapeHtml(t.name)}</span>
+                </button>
+            `;
+        }).join('');
+
+        container.querySelectorAll('.keyin-team-dyn-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                activeKeyInTeamId = parseInt(this.getAttribute('data-team-id'), 10);
+                renderKeyInTeamButtons();
+                populateKeyInPlayerSelect();
+            });
+        });
     }
 
     function populateKeyInPlayerSelect() {
@@ -749,8 +739,8 @@
         el.keyInPlayerSelect.innerHTML = '';
 
         const teams = state.data?.teams || [];
-        const targetTeam = teams.find(t => t.name.toLowerCase().includes(activeKeyInTeam)) || (activeKeyInTeam === 'runda' ? teams[0] : teams[1]);
-        const targetTeamId = targetTeam ? targetTeam.id : (activeKeyInTeam === 'runda' ? 1 : 2);
+        const targetTeam = teams.find(t => t.id === activeKeyInTeamId) || teams[0];
+        const targetTeamId = targetTeam ? targetTeam.id : activeKeyInTeamId;
 
         const teamPlayers = getTeamMembers(targetTeamId);
 
@@ -798,9 +788,7 @@
             return;
         }
 
-        const teams = state.data?.teams || [];
-        const targetTeam = teams.find(t => t.name.toLowerCase().includes(activeKeyInTeam)) || (activeKeyInTeam === 'runda' ? teams[0] : teams[1]);
-        const targetTeamId = targetTeam ? targetTeam.id : (activeKeyInTeam === 'runda' ? 1 : 2);
+        const targetTeamId = activeKeyInTeamId;
 
         const goalTypeRadio = document.querySelector('input[name="keyInGoalType"]:checked');
         const isOwnGoal = (goalTypeRadio && goalTypeRadio.value === 'og');

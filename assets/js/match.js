@@ -200,28 +200,38 @@
 
         // Final Results breakdown (shown when finished)
         let finalResultsHtml = '';
-        if (isFinished) {
-            const rundaScore = d.scores.runda;
-            const makoScore = d.scores.makongeni;
+        if (isFinished && d.teams && d.teams.length >= 2) {
+            // Determine winner
+            let maxScore = -1;
+            let winners = [];
+            d.teams.forEach(t => {
+                const s = t.score ?? 0;
+                if (s > maxScore) {
+                    maxScore = s;
+                    winners = [t];
+                } else if (s === maxScore && maxScore > 0) {
+                    winners.push(t);
+                }
+            });
 
             let winnerText = 'Match Drawn';
             const trophyIcon = window.TurfIcons ? TurfIcons.icon('trophy', { width: 22, height: 22, class: 'text-brand' }) : '';
-            if (rundaScore > makoScore) {
-                winnerText = `<span style="display:inline-flex;align-items:center;gap:0.45rem;">${trophyIcon} Runda FC Win!</span>`;
-            } else if (makoScore > rundaScore) {
-                winnerText = `<span style="display:inline-flex;align-items:center;gap:0.45rem;">${trophyIcon} Makongeni FC Win!</span>`;
+            if (winners.length === 1 && maxScore > 0) {
+                winnerText = `<span style="display:inline-flex;align-items:center;gap:0.45rem;">${trophyIcon} ${escapeHtml(winners[0].name)} Win!</span>`;
+            } else if (winners.length > 1) {
+                winnerText = `Joint Winners: ${winners.map(w => escapeHtml(w.name)).join(' & ')} (${maxScore} goals each)`;
             }
 
             // Group scorers per team
-            const rundaScorers = [];
-            const makoScorers = [];
+            const teamScorersMap = {};
+            d.teams.forEach(t => {
+                teamScorersMap[t.id] = [];
+            });
 
             (d.goals || []).forEach(g => {
                 const label = g.is_own_goal ? `${g.player_name} (OG) ${g.match_minute}'` : `${g.player_name} ${g.match_minute}'`;
-                if (g.credited_team_name.toLowerCase().includes('runda')) {
-                    rundaScorers.push(label);
-                } else {
-                    makoScorers.push(label);
+                if (teamScorersMap[g.team_id]) {
+                    teamScorersMap[g.team_id].push(label);
                 }
             });
 
@@ -247,22 +257,20 @@
                     </div>
                     
                     <div class="results-columns-grid">
-                        <div class="results-team-col">
-                            <div class="results-team-col-header" style="color:#34d399;display:flex;align-items:center;gap:0.4rem;">
-                                ${window.TurfIcons ? TurfIcons.rundaBadge(22) : ''} Runda FC (${rundaScore})
-                            </div>
-                            <ul class="results-scorers-list">
-                                ${rundaScorers.length > 0 ? rundaScorers.map(s => `<li style="display:flex;align-items:center;gap:0.4rem;">${ballSvg} ${escapeHtml(s)}</li>`).join('') : '<li style="color:var(--text-dim);font-style:italic;">No goals</li>'}
-                            </ul>
-                        </div>
-                        <div class="results-team-col">
-                            <div class="results-team-col-header" style="color:#60a5fa;display:flex;align-items:center;gap:0.4rem;">
-                                ${window.TurfIcons ? TurfIcons.makoBadge(22) : ''} Makongeni FC (${makoScore})
-                            </div>
-                            <ul class="results-scorers-list">
-                                ${makoScorers.length > 0 ? makoScorers.map(s => `<li style="display:flex;align-items:center;gap:0.4rem;">${ballSvg} ${escapeHtml(s)}</li>`).join('') : '<li style="color:var(--text-dim);font-style:italic;">No goals</li>'}
-                            </ul>
-                        </div>
+                        ${d.teams.map(t => {
+                            const scorers = teamScorersMap[t.id] || [];
+                            const badge = window.TurfIcons ? TurfIcons.teamBadge(t.name, 22) : '';
+                            return `
+                                <div class="results-team-col">
+                                    <div class="results-team-col-header" style="display:flex;align-items:center;gap:0.4rem;">
+                                        ${badge} ${escapeHtml(t.name)} (${t.score ?? 0})
+                                    </div>
+                                    <ul class="results-scorers-list">
+                                        ${scorers.length > 0 ? scorers.map(s => `<li style="display:flex;align-items:center;gap:0.4rem;">${ballSvg} ${escapeHtml(s)}</li>`).join('') : '<li style="color:var(--text-dim);font-style:italic;">No goals</li>'}
+                                    </ul>
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
 
                     ${topScorerHtml}
@@ -272,8 +280,46 @@
 
         const clockIcon = window.TurfIcons ? TurfIcons.icon('clock', { width: 16, height: 16 }) : '';
         const whistleIcon = window.TurfIcons ? TurfIcons.icon('whistle', { width: 16, height: 16 }) : '';
-        const rundaCrest = window.TurfIcons ? TurfIcons.rundaBadge(48) : 'RFC';
-        const makoCrest = window.TurfIcons ? TurfIcons.makoBadge(48) : 'MFC';
+
+        // Scoreboard teams row (2 or 3 teams)
+        let scoreboardTeamsRowHtml = '';
+        if (d.teams && d.teams.length === 2) {
+            const t1 = d.teams[0];
+            const t2 = d.teams[1];
+            scoreboardTeamsRowHtml = `
+                <div class="scoreboard-teams-row">
+                    <div class="team-score-side">
+                        <div class="team-score-crest">${window.TurfIcons ? TurfIcons.teamBadge(t1.name, 48) : ''}</div>
+                        <div class="team-score-name">${escapeHtml(t1.name)}</div>
+                    </div>
+
+                    <div class="scoreboard-center">
+                        <div class="score-display-box">
+                            <span class="score-num">${t1.score ?? 0}</span>
+                            <span class="score-divider">-</span>
+                            <span class="score-num">${t2.score ?? 0}</span>
+                        </div>
+                    </div>
+
+                    <div class="team-score-side">
+                        <div class="team-score-crest">${window.TurfIcons ? TurfIcons.teamBadge(t2.name, 48) : ''}</div>
+                        <div class="team-score-name">${escapeHtml(t2.name)}</div>
+                    </div>
+                </div>
+            `;
+        } else if (d.teams && d.teams.length >= 3) {
+            scoreboardTeamsRowHtml = `
+                <div class="scoreboard-teams-row" style="display:grid;grid-template-columns:repeat(${d.teams.length}, 1fr);gap:1rem;">
+                    ${d.teams.map(t => `
+                        <div class="team-score-side">
+                            <div class="team-score-crest">${window.TurfIcons ? TurfIcons.teamBadge(t.name, 36) : ''}</div>
+                            <div class="team-score-name">${escapeHtml(t.name)}</div>
+                            <div class="score-num" style="font-size:2.5rem;font-weight:800;margin-top:0.25rem;">${t.score ?? 0}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
 
         el.container.innerHTML = `
             ${finalResultsHtml}
@@ -289,25 +335,7 @@
                     </div>
                 </div>
 
-                <div class="scoreboard-teams-row">
-                    <div class="team-score-side">
-                        <div class="team-score-crest">${rundaCrest}</div>
-                        <div class="team-score-name name-runda">Runda FC</div>
-                    </div>
-
-                    <div class="scoreboard-center">
-                        <div class="score-display-box">
-                            <span class="score-num" id="scoreRunda">${d.scores.runda}</span>
-                            <span class="score-divider">-</span>
-                            <span class="score-num" id="scoreMako">${d.scores.makongeni}</span>
-                        </div>
-                    </div>
-
-                    <div class="team-score-side">
-                        <div class="team-score-crest">${makoCrest}</div>
-                        <div class="team-score-name name-mako">Makongeni FC</div>
-                    </div>
-                </div>
+                ${scoreboardTeamsRowHtml}
 
                 <div class="goal-feed-section">
                     <div class="goal-feed-title">

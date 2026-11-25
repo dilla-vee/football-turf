@@ -89,13 +89,85 @@ if (!empty($databaseUrl)) {
 
 define('DB_CHARSET', 'utf8mb4');
 
-// Team Balance Rules
-// 10 Skilled Players (5 paired rival matchups = 5 skilled per team)
-// 9 Regular Players (4-5 per team)
+// Default Team Balance Rules (2 Teams Mode)
 define('MAX_SKILLED_PER_TEAM', 5);
 define('MAX_REGULAR_PER_TEAM', 5);
 define('TOTAL_PLAYERS_PER_TEAM', 10);
 define('TOTAL_PLAYERS_ALLOWED', 20);
+
+/**
+ * Get active team mode ('2_teams' or '3_teams').
+ */
+function getTeamMode(PDO $pdo, bool $refresh = false): string {
+    static $mode = null;
+    if ($mode !== null && !$refresh) {
+        return $mode;
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'team_mode'");
+        $stmt->execute();
+        $val = $stmt->fetchColumn();
+        $mode = ($val === '3_teams') ? '3_teams' : '2_teams';
+    } catch (Throwable $e) {
+        $mode = '2_teams';
+    }
+    return $mode;
+}
+
+/**
+ * Get capacity parameters based on active match mode:
+ * - 2 Teams: 2 squads of 9-10 (5 skilled max, 5 regular max)
+ * - 3 Teams: 3 squads of 6 (4 skilled max, 3 regular max)
+ */
+function getTeamCaps(string $teamMode): array {
+    if ($teamMode === '3_teams') {
+        return [
+            'mode' => '3_teams',
+            'team_count' => 3,
+            'max_team_size' => 6,
+            'max_skilled_per_team' => 4,
+            'max_regular_per_team' => 3,
+            'total_target' => 18
+        ];
+    }
+    return [
+        'mode' => '2_teams',
+        'team_count' => 2,
+        'max_team_size' => 10,
+        'max_skilled_per_team' => 5,
+        'max_regular_per_team' => 5,
+        'total_target' => 18
+    ];
+}
+
+/**
+ * Auto-ensures database supports 3rd team and mode settings across MySQL, PostgreSQL and SQLite.
+ */
+function ensureDatabaseTeamSupport(PDO $pdo): void {
+    static $ensured = false;
+    if ($ensured) return;
+    $ensured = true;
+
+    try {
+        // Ensure team_mode setting exists
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM settings WHERE setting_key = 'team_mode'");
+        $stmt->execute();
+        if ((int)$stmt->fetchColumn() === 0) {
+            $ins = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('team_mode', '2_teams')");
+            $ins->execute();
+        }
+
+        // Ensure Team 3 exists
+        $stmtT3 = $pdo->prepare("SELECT COUNT(*) FROM teams WHERE id = 3");
+        $stmtT3->execute();
+        if ((int)$stmtT3->fetchColumn() === 0) {
+            $insT3 = $pdo->prepare("INSERT INTO teams (id, name) VALUES (3, 'Parklands FC')");
+            $insT3->execute();
+        }
+    } catch (Throwable $e) {
+        // Non-blocking if table not ready yet
+    }
+}
 
 /**
  * Head-to-Head rival pairing rules for skilled players based on official match sheet:

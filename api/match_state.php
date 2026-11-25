@@ -73,8 +73,14 @@ function buildMatchPayload(PDO $pdo): array {
         $elapsedSeconds = max(0, strtotime($endedAt) - strtotime($startedAt));
     }
 
-    // 3. Fetch Teams
-    $teamsStmt = $pdo->query("SELECT id, name FROM teams ORDER BY id ASC");
+    // 3. Fetch Teams based on active match mode (2 or 3 teams)
+    ensureDatabaseTeamSupport($pdo);
+    $teamMode = getTeamMode($pdo);
+    $caps = getTeamCaps($teamMode);
+
+    $teamsStmt = $pdo->prepare("SELECT id, name FROM teams ORDER BY id ASC LIMIT ?");
+    $teamsStmt->bindValue(1, $caps['team_count'], PDO::PARAM_INT);
+    $teamsStmt->execute();
     $teamsRaw = $teamsStmt->fetchAll();
 
     // 4. Calculate Scores directly from goals table
@@ -88,16 +94,16 @@ function buildMatchPayload(PDO $pdo): array {
         $scoresByTeam[(int)$row['team_id']] = (int)$row['score'];
     }
 
-    // Map named team scores
+    // Map team scores
     $rundaScore = 0;
     $makoScore = 0;
     $teamsFormatted = [];
     foreach ($teamsRaw as $t) {
         $tid = (int)$t['id'];
         $score = $scoresByTeam[$tid] ?? 0;
-        if (stripos($t['name'], 'runda') !== false) {
+        if ($tid === 1 || stripos($t['name'], 'runda') !== false) {
             $rundaScore = $score;
-        } else {
+        } elseif ($tid === 2 || stripos($t['name'], 'makongeni') !== false) {
             $makoScore = $score;
         }
         $teamsFormatted[] = [
@@ -187,6 +193,8 @@ function buildMatchPayload(PDO $pdo): array {
     return [
         'success' => true,
         'state' => $state,
+        'team_mode' => $teamMode,
+        'team_caps' => $caps,
         'started_at' => $startedAt,
         'ended_at' => $endedAt,
         'server_time' => $serverTime,
@@ -196,6 +204,7 @@ function buildMatchPayload(PDO $pdo): array {
             'runda' => $rundaScore,
             'makongeni' => $makoScore,
         ],
+        'scores_by_id' => $scoresByTeam,
         'teams' => $teamsFormatted,
         'goals' => $goalsFormatted,
         'top_scorers' => $topScorers,
@@ -434,10 +443,19 @@ function handleRecordGoal(PDO $pdo, array $jsonInput): void {
         $creditedTeamId = $playerTeamId;
 
         if ($isOwnGoal) {
-            // Own Goal: credited to the OPPOSITE team
-            $oppStmt = $pdo->prepare("SELECT id FROM teams WHERE id != ? LIMIT 1");
-            $oppStmt->execute([$playerTeamId]);
-            $creditedTeamId = (int)$oppStmt->fetchColumn();
+            // Own Goal: credited to the opposing team or chosen team
+            if ($chosenTeamId > 0 && $chosenTeamId !== $playerTeamId) {
+                $creditedTeamId = $chosenTeamId;
+            } else {
+                $teamMode = getTeamMode($pdo);
+                if ($teamMode === '2_teams') {
+                    $creditedTeamId = ($playerTeamId === 1) ? 2 : 1;
+                } else {
+                    $oppStmt = $pdo->prepare("SELECT id FROM teams WHERE id != ? ORDER BY id ASC LIMIT 1");
+                    $oppStmt->execute([$playerTeamId]);
+                    $creditedTeamId = (int)$oppStmt->fetchColumn();
+                }
+            }
 
             if ($creditedTeamId <= 0) {
                 $pdo->rollBack();
@@ -600,41 +618,50 @@ function handleResetMatch(PDO $pdo): void {
 function formatWhatsAppResult(array $teams, array $goals, int $elapsedSeconds, array $topScorers, string $state): string {
     if (count($teams) < 2) return '';
 
-    $team1 = $teams[0];
-    $team2 = $teams[1];
     $durationStr = sprintf("%02d:%02d", floor($elapsedSeconds / 60), $elapsedSeconds % 60);
+    $statusHeader = ($state === 'finished') ? "FT {$durationStr}" : (($state === 'live') ? "LIVE {$durationStr}" : "Upcoming");
 
-    // Group scorers per credited team
-    $t1Scorers = [];
-    $t2Scorers = [];
+    // Group scorers per team
+    $scorersByTeam = [];
+    foreach ($teams as $t) {
+        $scorersByTeam[$t['id']] = [];
+    }
 
     foreach ($goals as $g) {
         $label = $g['is_own_goal'] ? "{$g['player_name']} (OG) {$g['match_minute']}'" : "{$g['player_name']} {$g['match_minute']}'";
-        if ($g['team_id'] === $team1['id']) {
-            $t1Scorers[] = $label;
-        } else {
-            $t2Scorers[] = $label;
+        if (isset($scorersByTeam[$g['team_id']])) {
+            $scorersByTeam[$g['team_id']][] = $label;
         }
     }
 
-    $t1Str = !empty($t1Scorers) ? implode(', ', $t1Scorers) : 'None';
-    $t2Str = !empty($t2Scorers) ? implode(', ', $t2Scorers) : 'None';
-
-    $statusHeader = ($state === 'finished') ? "FT {$durationStr}" : (($state === 'live') ? "LIVE {$durationStr}" : "Upcoming");
-
-    $out = "⚽ TURF MATCH SCOREBOARD ({$statusHeader})\n";
+    $out = "TURF MATCH SCOREBOARD ({$statusHeader})\n";
     $out .= "------------------------------------\n";
-    $out .= "🟢 {$team1['name']} {$team1['score']} - {$team2['score']} {$team2['name']} 🔵\n\n";
-    $out .= "🟢 {$team1['name']}: {$t1Str}\n";
-    $out .= "🔵 {$team2['name']}: {$t2Str}\n";
+
+    // Summary line
+    if (count($teams) === 2) {
+        $out .= "{$teams[0]['name']} {$teams[0]['score']} - {$teams[1]['score']} {$teams[1]['name']}\n\n";
+    } else {
+        $scoreParts = [];
+        foreach ($teams as $t) {
+            $scoreParts[] = "{$t['name']}: {$t['score']}";
+        }
+        $out .= implode(' | ', $scoreParts) . "\n\n";
+    }
+
+    // Team detail lines
+    foreach ($teams as $t) {
+        $sList = $scorersByTeam[$t['id']] ?? [];
+        $sStr = !empty($sList) ? implode(', ', $sList) : 'None';
+        $out .= "• {$t['name']} ({$t['score']}): {$sStr}\n";
+    }
 
     if ($state === 'finished') {
-        if ($team1['score'] > $team2['score']) {
-            $out .= "\n🏆 WINNER: {$team1['name']}!\n";
-        } elseif ($team2['score'] > $team1['score']) {
-            $out .= "\n🏆 WINNER: {$team2['name']}!\n";
+        // Find highest score
+        usort($teams, fn($a, $b) => $b['score'] <=> $a['score']);
+        if ($teams[0]['score'] > $teams[1]['score']) {
+            $out .= "\nWINNER: {$teams[0]['name']}!\n";
         } else {
-            $out .= "\n🤝 RESULT: Match Drawn!\n";
+            $out .= "\nRESULT: Match Drawn!\n";
         }
     }
 
@@ -642,7 +669,7 @@ function formatWhatsAppResult(array $teams, array $goals, int $elapsedSeconds, a
         $names = array_map(fn($s) => $s['name'], $topScorers);
         $goalsNum = $topScorers[0]['goals'];
         $suffix = $goalsNum > 1 ? "goals" : "goal";
-        $out .= "⭐ Top Scorer: " . implode(', ', $names) . " ({$goalsNum} {$suffix})\n";
+        $out .= "Top Scorer: " . implode(', ', $names) . " ({$goalsNum} {$suffix})\n";
     }
 
     return trim($out);

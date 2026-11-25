@@ -123,15 +123,34 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
                 </div>
                 <div class="admin-nav-right">
                     <span id="lockBadge" class="tier-badge tier-regular">OPEN</span>
-                    <button type="button" id="lockToggleBtn" class="btn btn-warning btn-sm" style="display:inline-flex; align-items:center; gap:0.4rem;">
+                    <button type="button" id="lockToggleBtn" class="btn btn-outline btn-sm" style="display:inline-flex; align-items:center; gap:0.4rem;">
                         <span id="lockBtnIcon"></span><span id="lockBtnText">Lock Picking</span>
                     </button>
                     <a href="../" class="btn btn-outline btn-sm" target="_blank" style="display:inline-flex; align-items:center; gap:0.4rem;">
                         <span id="homeBtnIcon"></span> Public View
                     </a>
+                    <button type="button" class="theme-toggle-btn" id="adminThemeToggleBtn" onclick="TurfTheme.toggle()" title="Toggle Black / White Mode"></button>
                     <button type="button" id="logoutBtn" class="btn btn-outline btn-sm">Sign Out</button>
                 </div>
             </nav>
+
+            <!-- Match Format & Team Customization Bar -->
+            <section style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.25rem;">
+                <div class="mode-switch-bar" style="max-width:400px; margin:0;">
+                    <button type="button" class="mode-tab-btn active" id="modeBtn2Teams" data-mode="2_teams">
+                        2 Squads (9 vs 9)
+                    </button>
+                    <button type="button" class="mode-tab-btn" id="modeBtn3Teams" data-mode="3_teams">
+                        3 Squads (6 vs 6 vs 6)
+                    </button>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <button type="button" class="btn btn-outline btn-sm" id="btnOpenEditTeamNames" style="display:inline-flex; align-items:center; gap:0.4rem;">
+                        <span id="editTeamsIcon"></span> Customize Team Names
+                    </button>
+                </div>
+            </section>
 
             <!-- Conflict Banner Container -->
             <div id="rivalConflictContainer" style="margin-bottom: 1rem;"></div>
@@ -199,21 +218,13 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
                 <div style="text-align:center; padding:1.5rem; color:var(--text-dim);">Loading live match scoreboard...</div>
             </section>
 
-            <!-- Live Match Board (Side-by-side Runda FC vs Makongeni FC) -->
+            <!-- Live Match Board (Squads Grid: 2 or 3 teams) -->
             <section style="margin-bottom:2rem;">
                 <h2 style="font-size:1.25rem; font-weight:800; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; letter-spacing:-0.02em;">
-                    <span id="squadsTitleIcon"></span> Live Match Squads (Side-by-Side)
+                    <span id="squadsTitleIcon"></span> Live Match Squads
                 </h2>
-                <div class="admin-grid">
-                    <!-- Runda FC Board -->
-                    <div class="admin-card" id="boardRunda" style="border-top:3px solid var(--runda-primary);">
-                        <div style="text-align:center; padding:1.5rem; color:var(--text-dim);">Loading Runda FC...</div>
-                    </div>
-
-                    <!-- Makongeni FC Board -->
-                    <div class="admin-card" id="boardMakongeni" style="border-top:3px solid var(--mako-primary);">
-                        <div style="text-align:center; padding:1.5rem; color:var(--text-dim);">Loading Makongeni FC...</div>
-                    </div>
+                <div class="admin-grid" id="adminBoardsGrid">
+                    <div style="text-align:center; padding:1.5rem; color:var(--text-dim); grid-column: 1/-1;">Loading squad boards...</div>
                 </div>
             </section>
 
@@ -306,6 +317,36 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
     </div>
 
     <!-- ==========================================
+         Edit Team Names Modal
+         ========================================== -->
+    <div class="modal-overlay" id="editTeamNamesModalOverlay" role="dialog" aria-modal="true">
+        <div class="modal-box" style="max-width:440px;">
+            <h3 class="modal-title">Customize Team Names</h3>
+            <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:1rem;">
+                Set custom names for all squads. Changes apply immediately to player passes and live scoreboards.
+            </p>
+            <form id="editTeamNamesForm" style="text-align:left;">
+                <div class="form-group">
+                    <label for="teamNameInput1" class="form-label">Team 1 Name</label>
+                    <input type="text" id="teamNameInput1" class="form-input" required autocomplete="off" placeholder="e.g. Runda FC">
+                </div>
+                <div class="form-group">
+                    <label for="teamNameInput2" class="form-label">Team 2 Name</label>
+                    <input type="text" id="teamNameInput2" class="form-input" required autocomplete="off" placeholder="e.g. Makongeni FC">
+                </div>
+                <div class="form-group" id="team3NameGroup">
+                    <label for="teamNameInput3" class="form-label">Team 3 Name</label>
+                    <input type="text" id="teamNameInput3" class="form-input" autocomplete="off" placeholder="e.g. Parklands FC">
+                </div>
+                <div class="modal-actions" style="margin-top:1.5rem;">
+                    <button type="button" class="modal-btn modal-btn-cancel" id="closeEditTeamNamesBtn">Cancel</button>
+                    <button type="submit" class="modal-btn modal-btn-confirm">Save Team Names</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==========================================
          Edit Player Modal
          ========================================== -->
     <div class="modal-overlay" id="editModalOverlay" role="dialog" aria-modal="true">
@@ -392,16 +433,11 @@ $isLoggedIn = !empty($_SESSION[ADMIN_SESSION_KEY]);
                 Manually record a goal for either squad at any minute.
             </p>
             <form id="keyInScoreForm" style="text-align:left;">
-                <!-- Team Selection Buttons -->
+                <!-- Team Selection Buttons (Rendered dynamically for 2 or 3 teams) -->
                 <div class="form-group">
                     <label class="form-label">Team Credited With Goal</label>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
-                        <button type="button" class="btn btn-outline keyin-team-btn active" id="keyInTeamRunda" data-team="runda" style="border-color:#10b981; color:#34d399; font-weight:700; padding:0.6rem; justify-content:center;">
-                            <span class="club-pill-sm runda">RFC</span> Runda FC
-                        </button>
-                        <button type="button" class="btn btn-outline keyin-team-btn" id="keyInTeamMako" data-team="makongeni" style="border-color:var(--border-pitch); color:var(--text-secondary); font-weight:700; padding:0.6rem; justify-content:center;">
-                            <span class="club-pill-sm mako">MFC</span> Makongeni FC
-                        </button>
+                    <div id="keyInTeamButtonsContainer" style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+                        <!-- Populated dynamically via admin_match.js -->
                     </div>
                 </div>
 

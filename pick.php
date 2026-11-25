@@ -25,7 +25,10 @@ $token = trim($_GET['t'] ?? '');
     <div class="container">
         <!-- App Header -->
         <header class="app-header">
-            <div class="brand-badge"><span class="badge-dot"></span> MATCHDAY SQUAD SELECTION</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <div class="brand-badge"><span class="badge-dot"></span> MATCHDAY SQUAD SELECTION</div>
+                <button type="button" class="theme-toggle-btn" onclick="TurfTheme.toggle()" aria-label="Toggle theme"></button>
+            </div>
             <h1 class="app-title">TURF TEAMS</h1>
             <p class="app-subtitle">Balanced Squads • Fair Competition</p>
         </header>

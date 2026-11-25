@@ -79,6 +79,18 @@
         editPlayerTier: document.getElementById('editPlayerTier'),
         closeEditBtn: document.getElementById('closeEditBtn'),
 
+        // Mode & Team Customization
+        modeBtn2Teams: document.getElementById('modeBtn2Teams'),
+        modeBtn3Teams: document.getElementById('modeBtn3Teams'),
+        btnOpenEditTeamNames: document.getElementById('btnOpenEditTeamNames'),
+        editTeamNamesModalOverlay: document.getElementById('editTeamNamesModalOverlay'),
+        editTeamNamesForm: document.getElementById('editTeamNamesForm'),
+        teamNameInput1: document.getElementById('teamNameInput1'),
+        teamNameInput2: document.getElementById('teamNameInput2'),
+        teamNameInput3: document.getElementById('teamNameInput3'),
+        closeEditTeamNamesBtn: document.getElementById('closeEditTeamNamesBtn'),
+        adminBoardsGrid: document.getElementById('adminBoardsGrid'),
+
         // Toast Container
         toastContainer: document.getElementById('toastContainer')
     };
@@ -151,6 +163,28 @@
             el.saveBaseUrlBtn.addEventListener('click', handleSaveBaseUrl);
         }
 
+        if (el.modeBtn2Teams) {
+            el.modeBtn2Teams.addEventListener('click', () => setTeamMode('2_teams'));
+        }
+
+        if (el.modeBtn3Teams) {
+            el.modeBtn3Teams.addEventListener('click', () => setTeamMode('3_teams'));
+        }
+
+        if (el.btnOpenEditTeamNames) {
+            el.btnOpenEditTeamNames.addEventListener('click', handleOpenEditTeamNamesModal);
+        }
+
+        if (el.closeEditTeamNamesBtn) {
+            el.closeEditTeamNamesBtn.addEventListener('click', () => {
+                if (el.editTeamNamesModalOverlay) el.editTeamNamesModalOverlay.classList.remove('active');
+            });
+        }
+
+        if (el.editTeamNamesForm) {
+            el.editTeamNamesForm.addEventListener('submit', handleSaveTeamNames);
+        }
+
         if (el.adminModalCancelBtn) {
             el.adminModalCancelBtn.addEventListener('click', closeAdminModal);
         }
@@ -164,7 +198,7 @@
         }
 
         // Close modals on overlay backdrop tap
-        [el.adminModalOverlay, el.exportModalOverlay, el.editModalOverlay].forEach(overlay => {
+        [el.adminModalOverlay, el.exportModalOverlay, el.editModalOverlay, el.editTeamNamesModalOverlay].forEach(overlay => {
             if (overlay) {
                 overlay.addEventListener('click', (e) => {
                     if (e.target === overlay) {
@@ -291,10 +325,16 @@
             window.renderAdminMatchRosterSync(d);
         }
 
+        // Mode tabs sync
+        const is3Teams = (d.team_mode === '3_teams');
+        if (el.modeBtn2Teams) el.modeBtn2Teams.classList.toggle('active', !is3Teams);
+        if (el.modeBtn3Teams) el.modeBtn3Teams.classList.toggle('active', is3Teams);
+
         // Stats Counters
+        const caps = d.team_caps || { total_target: 18, max_skilled_per_team: 5, max_regular_per_team: 5 };
         if (el.statSkilled) el.statSkilled.textContent = `${d.stats.skilled_count} / ${d.stats.skilled_target}`;
         if (el.statRegular) el.statRegular.textContent = `${d.stats.regular_count} / ${d.stats.regular_target}`;
-        if (el.statTotal) el.statTotal.textContent = `${d.stats.total_players} / ${d.stats.max_allowed}`;
+        if (el.statTotal) el.statTotal.textContent = `${d.stats.total_players} / ${caps.total_target}`;
         if (el.statPicked) el.statPicked.textContent = `${d.stats.picked_count} / ${d.stats.total_players}`;
 
         // Lock Status Toggle
@@ -379,82 +419,152 @@
         renderPlayerDirectory(d.all_players);
     }
 
-    // Render Side-by-Side Teams
+    // Render Squads Grid (Dynamically supports 2 or 3 teams)
     function renderMatchBoards(teams) {
-        if (!teams || teams.length < 2) return;
-
-        const runda = teams.find(t => t.name.toLowerCase().includes('runda')) || teams[0];
-        const mako = teams.find(t => t.name.toLowerCase().includes('makongeni')) || teams[1];
-
-        renderTeamColumn(el.boardRunda, runda, 'runda');
-        renderTeamColumn(el.boardMakongeni, mako, 'makongeni');
-    }
-
-    function renderTeamColumn(container, team, theme) {
-        if (!container) return;
-
-        let playersHtml = '';
-        if (team.players && team.players.length > 0) {
-            playersHtml = team.players.map((p, index) => {
-                const tierClass = p.tier === 'skilled' ? 'tier-skilled' : 'tier-regular';
-                const tierLabel = p.tier === 'skilled' ? 'Skilled' : 'Regular';
-
-                const rivalHtml = p.rival_name 
-                    ? `<span class="rival-badge" style="font-size:0.68rem;background:rgba(239,68,68,0.15);color:#fca5a5;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25);margin-left:4px;display:inline-flex;align-items:center;gap:3px;">${window.TurfIcons ? TurfIcons.icon('users', { width:10, height:10 }) : ''} vs ${escapeHtml(p.rival_name)}</span>` 
-                    : '';
-                const refreshSvg = window.TurfIcons ? TurfIcons.icon('refresh', { width:12, height:12 }) : '';
-
-                return `
-                    <div class="player-row">
-                        <div class="player-info">
-                            <span style="color:var(--text-dim);font-size:0.75rem;min-width:20px;">#${index + 1}</span>
-                            <span style="font-weight:600;">${escapeHtml(p.name)}</span>
-                            <span class="tier-badge ${tierClass}">${tierLabel}</span>
-                            ${rivalHtml}
-                        </div>
-                        <div class="player-row-actions">
-                            <button type="button" class="btn btn-outline btn-sm btn-reset-pick" 
-                                data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Reset this pick" style="display:inline-flex;align-items:center;gap:0.35rem;">
-                                ${refreshSvg} Reset
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        } else {
-            playersHtml = `<div class="roster-empty">No players registered yet.</div>`;
+        const grid = el.adminBoardsGrid;
+        if (!grid) return;
+        if (!teams || teams.length === 0) {
+            grid.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-dim);grid-column:1/-1;">No teams configured.</div>';
+            return;
         }
 
-        container.innerHTML = `
-            <div class="admin-card-header">
-                <div>
-                    <h3 class="admin-card-title">${escapeHtml(team.name)}</h3>
-                    <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:0.2rem;">
-                        Skilled: <strong>${team.skilled_count}/${team.skilled_cap}</strong> • 
-                        Regular: <strong>${team.regular_count}/${team.regular_cap}</strong> • 
-                        Total: <strong>${team.total_count}/${team.max_team_size}</strong>
+        grid.innerHTML = teams.map((team) => {
+            let playersHtml = '';
+            if (team.players && team.players.length > 0) {
+                playersHtml = team.players.map((p, index) => {
+                    const tierClass = p.tier === 'skilled' ? 'tier-skilled' : 'tier-regular';
+                    const tierLabel = p.tier === 'skilled' ? 'Skilled' : 'Regular';
+                    const rivalHtml = p.rival_name 
+                        ? `<span class="rival-badge" style="font-size:0.68rem;padding:2px 6px;border-radius:4px;border:1px solid var(--border-pitch);margin-left:4px;display:inline-flex;align-items:center;gap:3px;">${window.TurfIcons ? TurfIcons.icon('users', { width:10, height:10 }) : ''} vs ${escapeHtml(p.rival_name)}</span>` 
+                        : '';
+                    const refreshSvg = window.TurfIcons ? TurfIcons.icon('refresh', { width:12, height:12 }) : '';
+
+                    return `
+                        <div class="player-row">
+                            <div class="player-info">
+                                <span style="color:var(--text-dim);font-size:0.75rem;min-width:20px;">#${index + 1}</span>
+                                <span style="font-weight:600;">${escapeHtml(p.name)}</span>
+                                <span class="tier-badge ${tierClass}">${tierLabel}</span>
+                                ${rivalHtml}
+                            </div>
+                            <div class="player-row-actions">
+                                <button type="button" class="btn btn-outline btn-sm btn-reset-pick" 
+                                    data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Reset this pick" style="display:inline-flex;align-items:center;gap:0.35rem;">
+                                    ${refreshSvg} Reset
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                playersHtml = `<div class="roster-empty">No players registered yet.</div>`;
+            }
+
+            const badgeSvg = window.TurfIcons ? TurfIcons.teamBadge(team.name, 28) : '';
+            return `
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <div>
+                            <h3 class="admin-card-title" style="display:flex;align-items:center;gap:0.4rem;">
+                                ${badgeSvg} ${escapeHtml(team.name)}
+                            </h3>
+                            <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:0.2rem;">
+                                Skilled: <strong>${team.skilled_count}/${team.skilled_cap}</strong> • 
+                                Regular: <strong>${team.regular_count}/${team.regular_cap}</strong> • 
+                                Total: <strong>${team.total_count}/${team.max_team_size}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="team-board-list">
+                        ${playersHtml}
                     </div>
                 </div>
-            </div>
-            <div class="team-board-list">
-                ${playersHtml}
-            </div>
-        `;
+            `;
+        }).join('');
 
         // Attach reset click handlers
-        container.querySelectorAll('.btn-reset-pick').forEach(btn => {
+        grid.querySelectorAll('.btn-reset-pick').forEach(btn => {
             btn.addEventListener('click', function () {
                 const id = parseInt(this.getAttribute('data-id'), 10);
                 const name = this.getAttribute('data-name');
                 openAdminConfirm(
                     `Reset pick for ${name}?`,
-                    `This will remove ${name} from ${team.name}. They will be able to pick again.`,
+                    `This will remove ${name}'s squad selection. They will be able to pick again.`,
                     () => handleResetPlayerPick(id),
                     'Reset Pick',
                     'btn-warning'
                 );
             });
         });
+    }
+
+    // Switch Match Format (2 Teams vs 3 Teams)
+    async function setTeamMode(mode) {
+        try {
+            const res = await fetch('api.php?action=set_team_mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: mode })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message || `Switched to ${mode === '3_teams' ? '3 squads (6v6v6)' : '2 squads (9v9)'}`, 'success');
+                fetchDashboardData();
+            } else {
+                showToast(data.error || 'Failed to switch match mode', 'error');
+            }
+        } catch (e) {
+            showToast('Network error setting match mode', 'error');
+        }
+    }
+
+    // Open Custom Team Names Modal
+    function handleOpenEditTeamNamesModal() {
+        if (!el.editTeamNamesModalOverlay) return;
+        const allTeams = state.data?.all_teams || state.data?.teams || [];
+        const t1 = allTeams.find(t => t.id == 1);
+        const t2 = allTeams.find(t => t.id == 2);
+        const t3 = allTeams.find(t => t.id == 3);
+
+        if (el.teamNameInput1) el.teamNameInput1.value = t1 ? t1.name : 'Runda FC';
+        if (el.teamNameInput2) el.teamNameInput2.value = t2 ? t2.name : 'Makongeni FC';
+        if (el.teamNameInput3) el.teamNameInput3.value = t3 ? t3.name : 'Parklands FC';
+
+        el.editTeamNamesModalOverlay.classList.add('active');
+    }
+
+    // Save Custom Team Names
+    async function handleSaveTeamNames(e) {
+        e.preventDefault();
+        const n1 = el.teamNameInput1?.value?.trim() || '';
+        const n2 = el.teamNameInput2?.value?.trim() || '';
+        const n3 = el.teamNameInput3?.value?.trim() || '';
+
+        if (!n1 || !n2) {
+            showToast('Team 1 and Team 2 names are required', 'warning');
+            return;
+        }
+
+        const names = { 1: n1, 2: n2 };
+        if (n3) names[3] = n3;
+
+        try {
+            const res = await fetch('api.php?action=update_team_names', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ names: names })
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (el.editTeamNamesModalOverlay) el.editTeamNamesModalOverlay.classList.remove('active');
+                showToast('Team names updated successfully!', 'success');
+                fetchDashboardData();
+            } else {
+                showToast(data.error || 'Failed to update team names', 'error');
+            }
+        } catch (err) {
+            showToast('Network error saving team names', 'error');
+        }
     }
 
     // Render Unassigned Players
@@ -678,43 +788,30 @@
     function handleOpenExportModal() {
         if (!state.data || !state.data.teams) return;
 
-        const runda = state.data.teams.find(t => t.name.toLowerCase().includes('runda')) || state.data.teams[0];
-        const mako = state.data.teams.find(t => t.name.toLowerCase().includes('makongeni')) || state.data.teams[1];
+        const is3Teams = (state.data.team_mode === '3_teams');
+        let text = `*TURF TEAMS - MATCHDAY SQUADS*\n`;
+        text += `Format: ${is3Teams ? '3 Squads (6v6v6)' : '2 Squads (9v9)'}\n\n`;
 
-        let text = `⚽ *TURF TEAMS - SATURDAY MATCH SQUADS* ⚽\n`;
-        text += `📅 Saturday Match | Balanced Squads\n\n`;
-
-        // Runda FC
-        text += `🟢 *${runda.name.toUpperCase()}* (${runda.players.length}/${runda.max_team_size})\n`;
-        if (runda.players.length === 0) {
-            text += `_No players picked yet_\n`;
-        } else {
-            runda.players.forEach((p, idx) => {
-                const tier = p.tier === 'skilled' ? 'Skilled' : 'Regular';
-                text += `${idx + 1}. ${p.name} (${tier})\n`;
-            });
-        }
-        text += `\n`;
-
-        // Makongeni FC
-        text += `🔵 *${mako.name.toUpperCase()}* (${mako.players.length}/${mako.max_team_size})\n`;
-        if (mako.players.length === 0) {
-            text += `_No players picked yet_\n`;
-        } else {
-            mako.players.forEach((p, idx) => {
-                const tier = p.tier === 'skilled' ? 'Skilled' : 'Regular';
-                text += `${idx + 1}. ${p.name} (${tier})\n`;
-            });
-        }
-        text += `\n`;
+        state.data.teams.forEach(team => {
+            text += `*${team.name.toUpperCase()}* (${team.players.length}/${team.max_team_size})\n`;
+            if (team.players.length === 0) {
+                text += `_No players picked yet_\n`;
+            } else {
+                team.players.forEach((p, idx) => {
+                    const tier = p.tier === 'skilled' ? 'Skilled' : 'Regular';
+                    text += `${idx + 1}. ${p.name} (${tier})\n`;
+                });
+            }
+            text += `\n`;
+        });
 
         // Unassigned notice if any
         if (state.data.unassigned && state.data.unassigned.length > 0) {
-            text += `⏳ *Pending Selection (${state.data.unassigned.length}):*\n`;
+            text += `*Pending Selection (${state.data.unassigned.length}):*\n`;
             text += state.data.unassigned.map(p => `• ${p.name}`).join('\n') + `\n\n`;
         }
 
-        text += `🔥 *Game on! Please be at the turf 15 minutes before kickoff.*`;
+        text += `*Matchday Notice: Please arrive 15 minutes before kickoff.*`;
 
         if (el.exportTextArea) {
             el.exportTextArea.value = text;

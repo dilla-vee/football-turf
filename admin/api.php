@@ -72,6 +72,14 @@ try {
             handleSetBaseUrl($pdo);
             break;
 
+        case 'set_team_mode':
+            handleSetTeamMode($pdo);
+            break;
+
+        case 'update_team_names':
+            handleUpdateTeamNames($pdo);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Invalid action']);
@@ -139,7 +147,12 @@ function resolveCurrentBaseUrl(PDO $pdo): string {
  * Fetch all admin dashboard data
  */
 function handleDashboardData(PDO $pdo): void {
+    ensureDatabaseTeamSupport($pdo);
     $baseUrl = resolveCurrentBaseUrl($pdo);
+
+    $teamMode = getTeamMode($pdo);
+    $caps = getTeamCaps($teamMode);
+    $activeTeamCount = $caps['team_count'];
 
     // Lock status
     $stmtLock = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'picking_locked'");
@@ -159,9 +172,15 @@ function handleDashboardData(PDO $pdo): void {
     $stmtPicked = $pdo->query("SELECT COUNT(*) FROM players WHERE team_id IS NOT NULL");
     $totalPicked = (int)$stmtPicked->fetchColumn();
 
-    // Teams data
-    $teamsStmt = $pdo->query("SELECT id, name FROM teams ORDER BY id ASC");
+    // Fetch active teams (2 or 3 teams)
+    $teamsStmt = $pdo->prepare("SELECT id, name FROM teams ORDER BY id ASC LIMIT ?");
+    $teamsStmt->bindValue(1, $activeTeamCount, PDO::PARAM_INT);
+    $teamsStmt->execute();
     $teamsRaw = $teamsStmt->fetchAll();
+
+    // Also fetch all teams (for team renaming dialog)
+    $allTeamsStmt = $pdo->query("SELECT id, name FROM teams ORDER BY id ASC LIMIT 3");
+    $allTeams = $allTeamsStmt->fetchAll();
 
     $teamsData = [];
     foreach ($teamsRaw as $team) {
@@ -205,11 +224,11 @@ function handleDashboardData(PDO $pdo): void {
             'id' => $teamId,
             'name' => $team['name'],
             'skilled_count' => $skilledCount,
-            'skilled_cap' => MAX_SKILLED_PER_TEAM,
+            'skilled_cap' => $caps['max_skilled_per_team'],
             'regular_count' => $regularCount,
-            'regular_cap' => MAX_REGULAR_PER_TEAM,
+            'regular_cap' => $caps['max_regular_per_team'],
             'total_count' => count($players),
-            'max_team_size' => TOTAL_PLAYERS_PER_TEAM,
+            'max_team_size' => $caps['max_team_size'],
             'players' => $playersFormatted
         ];
     }
@@ -294,6 +313,8 @@ function handleDashboardData(PDO $pdo): void {
         'success' => true,
         'base_url' => $baseUrl,
         'picking_locked' => $isLocked,
+        'team_mode' => $teamMode,
+        'team_caps' => $caps,
         'stats' => [
             'total_players' => $totalPlayers,
             'max_allowed' => TOTAL_PLAYERS_ALLOWED,
@@ -306,6 +327,7 @@ function handleDashboardData(PDO $pdo): void {
         ],
         'rival_conflicts' => $rivalConflicts,
         'teams' => $teamsData,
+        'all_teams' => $allTeams,
         'unassigned' => $unassignedPlayers,
         'all_players' => $allPlayers
     ]);
@@ -470,4 +492,55 @@ function handleSetBaseUrl(PDO $pdo): void {
     saveSetting($pdo, 'custom_base_url', $url);
 
     echo json_encode(['success' => true, 'base_url' => $url ?: getAppBaseUrl()]);
+}
+
+/**
+ * Switch team mode ('2_teams' or '3_teams')
+ */
+function handleSetTeamMode(PDO $pdo): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    $requestedMode = ($input['team_mode'] ?? '') === '3_teams' ? '3_teams' : '2_teams';
+
+    ensureDatabaseTeamSupport($pdo);
+    saveSetting($pdo, 'team_mode', $requestedMode);
+
+    $msg = ($requestedMode === '3_teams')
+        ? 'Switched to 3 Teams Mode! Players will split into 3 squads of 6.'
+        : 'Switched to 2 Teams Mode! Standard 2 squads of 9-10 restored.';
+
+    echo json_encode([
+        'success' => true,
+        'team_mode' => $requestedMode,
+        'message' => $msg
+    ]);
+}
+
+/**
+ * Update Team Names (customizable by Admin)
+ */
+function handleUpdateTeamNames(PDO $pdo): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    $teams = $input['teams'] ?? [];
+
+    if (!is_array($teams) || empty($teams)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'No team names provided.']);
+        return;
+    }
+
+    ensureDatabaseTeamSupport($pdo);
+
+    $stmt = $pdo->prepare("UPDATE teams SET name = ? WHERE id = ?");
+    foreach ($teams as $t) {
+        $id = (int)($t['id'] ?? 0);
+        $name = trim($t['name'] ?? '');
+        if ($id > 0 && !empty($name)) {
+            $stmt->execute([$name, $id]);
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Team names updated successfully! Changes reflect on player passes and match boards.'
+    ]);
 }

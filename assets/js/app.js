@@ -96,13 +96,21 @@
                 headers: { 'Accept': 'application/json' }
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (jsonErr) {
+                if (isInitialLoad) {
+                    showError('Server Error', 'The server returned an unexpected response. Please contact the match admin.');
+                }
+                return;
+            }
 
             if (!response.ok || !data.success) {
                 if (isInitialLoad) {
                     showError(
                         data.error || 'Invalid Link',
-                        'This match link is not recognized or has expired. Please contact the match organizer to get a valid link.'
+                        'This match pass is not recognized or has expired. Please check your personal link sent by the match organizer.'
                     );
                 }
                 return;
@@ -113,7 +121,11 @@
             state.pickingLocked = data.picking_locked;
             state.autoAssignedTeamId = data.auto_assigned_team_id;
 
-            renderApp();
+            try {
+                renderApp();
+            } catch (renderErr) {
+                console.error('Error rendering app:', renderErr);
+            }
 
             if (isInitialLoad) {
                 if (elements.loadingView) elements.loadingView.style.display = 'none';
@@ -123,7 +135,7 @@
         } catch (err) {
             console.error('Fetch error during polling:', err);
             if (isInitialLoad) {
-                showError('Network Error', 'Unable to reach the server. Please check your internet connection.');
+                showError('Connection Error', 'Unable to reach the match server. Please check your connection and try again.');
             }
         }
     }
@@ -157,20 +169,18 @@
         renderTeams();
     }
 
-    // Render the two team cards
+    // Render team selection cards (supports 2 or 3 teams)
     function renderTeams() {
         if (!elements.teamsGrid || !state.teams) return;
 
         const html = state.teams.map(team => {
-            const isRunda = team.name.toLowerCase().includes('runda');
-            const teamClass = isRunda ? 'team-runda' : 'team-makongeni';
             const crestIcon = window.TurfIcons 
-                ? (isRunda ? TurfIcons.rundaBadge(40) : TurfIcons.makoBadge(40))
-                : `<span class="club-pill-sm ${isRunda ? 'runda' : 'mako'}">${isRunda ? 'RFC' : 'MFC'}</span>`;
+                ? TurfIcons.teamBadge(team.name, 40)
+                : `<span class="club-crest-pill">${escapeHtml(team.name.substring(0, 3).toUpperCase())}</span>`;
             const isViewerTeam = (state.player.picked_team_id === team.id);
             const isOnlyOption = (!state.player.has_picked && state.autoAssignedTeamId === team.id && team.is_selectable);
 
-            let cardClasses = `team-card ${teamClass}`;
+            let cardClasses = `team-card`;
             if (team.is_full_for_viewer) cardClasses += ' is-full';
             if (team.is_selectable) cardClasses += ' is-selectable';
             if (isOnlyOption) cardClasses += ' is-only-choice';
@@ -182,9 +192,9 @@
             } else if (team.spots_left <= 0) {
                 spotsHtml = `<span class="spots-count spots-none">Full for your tier</span>`;
             } else if (team.spots_left === 1) {
-                spotsHtml = `<span class="spots-count spots-last">1 spot remaining for you</span>`;
+                spotsHtml = `<span class="spots-count spots-last">1 spot remaining</span>`;
             } else {
-                spotsHtml = `<span class="spots-count spots-available">${team.spots_left} spots left for you</span>`;
+                spotsHtml = `<span class="spots-count spots-available">${team.spots_left} spots left</span>`;
             }
 
             // Pick button logic
@@ -192,20 +202,20 @@
             if (state.player.has_picked) {
                 if (isViewerTeam) {
                     const checkIcon = window.TurfIcons ? TurfIcons.icon('check', { width: 16, height: 16 }) : '✓';
-                    buttonHtml = `<button class="pick-btn" disabled style="background:#059669;color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;">${checkIcon} You are on this team</button>`;
+                    buttonHtml = `<button class="pick-btn" disabled style="background:var(--text-primary);color:var(--bg-pitch);border-color:var(--text-primary);display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;font-weight:800;">${checkIcon} You are on this team</button>`;
                 } else {
                     buttonHtml = `<button class="pick-btn" disabled>Locked</button>`;
                 }
             } else if (state.pickingLocked) {
                 buttonHtml = `<button class="pick-btn" disabled>Picking Locked by Admin</button>`;
             } else if (team.blocked_by_rival) {
-                buttonHtml = `<button class="pick-btn" disabled style="background:#451a1a;color:#fca5a5;border:1px solid #7f1d1d;cursor:not-allowed;">Blocked: Opponent ${escapeHtml(team.rival_name || '')} is here</button>`;
+                buttonHtml = `<button class="pick-btn" disabled style="cursor:not-allowed;opacity:0.6;">Blocked: Rival Opponent is here</button>`;
             } else if (team.is_full_for_viewer) {
-                buttonHtml = `<button class="pick-btn" disabled>Team Full for You</button>`;
+                buttonHtml = `<button class="pick-btn" disabled>Squad Full for You</button>`;
             } else {
                 buttonHtml = `
                     <button class="pick-btn" data-team-id="${team.id}" data-team-name="${escapeHtml(team.name)}">
-                        Pick ${escapeHtml(team.name)}
+                        Join ${escapeHtml(team.name)}
                     </button>
                 `;
             }
